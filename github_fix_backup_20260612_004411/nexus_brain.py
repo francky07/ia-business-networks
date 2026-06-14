@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+import asyncio, json, os, sys, subprocess
+from datetime import datetime
+
+# Charger les secrets centralisés
+SECRETS_FILE = os.path.expanduser("~/ia_nexus/config/central_secrets.json")
+if os.path.exists(SECRETS_FILE):
+    with open(SECRETS_FILE) as f:
+        secrets = json.load(f)
+    os.environ.update(secrets)
+else:
+    print("⚠️ Fichier central_secrets.json introuvable")
+
+# Importer les paramètres après avoir chargé les secrets
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+try:
+    from config.settings import *
+except ImportError:
+    # Fallback : valeurs par défaut
+    SEUIL_VENTE_EMAILS = int(os.environ.get("SEUIL_VENTE_EMAILS", 5))
+    MONTANT_EMAIL_USD = float(os.environ.get("MONTANT_EMAIL_USD", 0.01))
+
+class NexusBrain:
+    def __init__(self):
+        self.running = True
+
+    def log(self, msg):
+        print(f"[{datetime.now()}] {msg}")
+
+    def get_emails_count(self):
+        try:
+            with open(os.path.expanduser("~/agence_kays/keys.json")) as f:
+                return len(json.load(f).get("emails", []))
+        except:
+            return 0
+
+    async def run(self):
+        self.log("🚀 IA Nexus démarré avec secrets centralisés")
+        while self.running:
+            nb = self.get_emails_count()
+            if nb >= SEUIL_VENTE_EMAILS:
+                self.log(f"💰 Vente de {nb} emails")
+                subprocess.run(["python", os.path.expanduser("~/departement_ventes/sell_emails_paypal.py")])
+            await asyncio.sleep(30)
+
+if __name__ == "__main__":
+    brain = NexusBrain()
+    asyncio.run(brain.run())

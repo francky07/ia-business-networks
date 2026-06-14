@@ -1,0 +1,1 @@
+bash: ./diagnostic.sh: No such file or directory

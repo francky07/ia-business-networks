@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+import asyncio
+import json
+import os
+import subprocess
+import time
+import random
+from datetime import datetime
+from collections import deque
+
+# Chemins
+MEMORY_FILE = os.path.expanduser("~/cerebrum/memory/decisions.json")
+KEYS_FILE = os.path.expanduser("~/agence_kays/keys.json")
+LOG_FILE = os.path.expanduser("~/cerebrum/logs/cerebrum.log")
+# # # # VENTES_SCRIPT = os.path.expanduser("~/departement_ventes/sell_emails_paypal.py")  # PayPal désactivé  # PayPal désactivé
+
+class CerebrumMaximus:
+    def __init__(self):
+        self.running = True
+        self.memory = self.load_memory()
+        self.decision_queue = deque(maxlen=100)
+        self.stats = self.memory.get("stats", {"ventes":0, "trades":0, "arbitrages":0})
+
+    def log(self, msg, level="INFO"):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{timestamp}] [{level}] {msg}"
+        print(line)
+        with open(LOG_FILE, "a") as f:
+            f.write(line + "\n")
+
+    def load_memory(self):
+        try:
+            with open(MEMORY_FILE) as f:
+                return json.load(f)
+        except:
+            return {"seuils": {"vente_emails":5, "trade_crypto":80, "arbitrage_profit":0.5}, "historique":[], "stats":{"ventes":0,"trades":0,"arbitrages":0}}
+
+    def save_memory(self):
+        self.memory["stats"] = self.stats
+        with open(MEMORY_FILE, "w") as f:
+            json.dump(self.memory, f, indent=2)
+
+    def get_emails_count(self):
+        try:
+            with open(KEYS_FILE) as f:
+                data = json.load(f)
+                return len(data.get("emails", []))
+        except:
+            return 0
+
+    async def decision_vente_emails(self):
+        seuil = self.memory["seuils"]["vente_emails"]
+        nb = self.get_emails_count()
+        if nb >= seuil:
+            self.log(f"📧 Décision : vendre {nb} emails (seuil={seuil})", "ACTION")
+            result = subprocess.run(["python", VENTES_SCRIPT], capture_output=True, text=True)
+            if "LIEN DE PAIEMENT" in result.stdout:
+                self.stats["ventes"] += 1
+                self.decision_queue.append(("vente", nb, datetime.now().isoformat()))
+                # Auto-apprentissage : si beaucoup de ventes, on augmente le seuil
+                if self.stats["ventes"] % 5 == 0:
+                    self.memory["seuils"]["vente_emails"] = min(20, seuil + 1)
+                    self.log(f"🧠 Apprentissage : seuil vente augmenté à {self.memory['seuils']['vente_emails']}", "LEARN")
+            return True
+        return False
+
+    async def decision_relance_services(self):
+        # Vérifier que l'agence Kays tourne
+        agence_up = "agence_kays" in subprocess.run(["tmux", "ls"], capture_output=True, text=True).stdout
+        if not agence_up:
+            self.log("⚠️ Agence Kays absente – relance", "WARN")
+            subprocess.Popen(["tmux", "new-session", "-d", "-s", "agence_kays", "python ~/agence_kays/agence.py"])
+        # Vérifier que le module ventes existe (script)
+        if not os.path.exists(VENTES_SCRIPT):
+            self.log("❌ Script de ventes introuvable", "ERROR")
+
+    async def auto_amelioration(self):
+        # Ajuster les seuils en fonction des résultats
+        if len(self.decision_queue) > 10:
+            recent_ventes = [d for d in self.decision_queue if d[0] == "vente"]
+            taux_succes = len(recent_ventes) / len(self.decision_queue) if self.decision_queue else 0
+            if taux_succes > 0.7:
+                self.memory["seuils"]["vente_emails"] = max(1, self.memory["seuils"]["vente_emails"] - 1)
+                self.log(f"📈 Taux succès élevé ({taux_succes:.0%}) → seuil vente baissé à {self.memory['seuils']['vente_emails']}", "LEARN")
+            elif taux_succes < 0.3:
+                self.memory["seuils"]["vente_emails"] = min(20, self.memory["seuils"]["vente_emails"] + 1)
+                self.log(f"📉 Taux succès faible ({taux_succes:.0%}) → seuil vente augmenté à {self.memory['seuils']['vente_emails']}", "LEARN")
+            self.decision_queue.clear()
+
+    async def dashboard_permanent(self):
+        # Affiche un mini tableau de bord dans les logs toutes les minutes
+        while self.running:
+            await asyncio.sleep(60)
+            nb_emails = self.get_emails_count()
+            self.log(f"📊 DASHBOARD | Emails: {nb_emails} | Ventes totales: {self.stats['ventes']} | Seuil vente: {self.memory['seuils']['vente_emails']}")
+
+    async def run(self):
+        self.log("🚀 CEREBRUM MAXIMUS activé – cerveau géant en ligne")
+        # Lancer le tableau de bord permanent
+        asyncio.create_task(self.dashboard_permanent())
+        while self.running:
+            await self.decision_vente_emails()
+            await self.decision_relance_services()
+            await self.auto_amelioration()
+            self.save_memory()
+            await asyncio.sleep(30)  # cycle toutes les 30 secondes
+
+if __name__ == "__main__":
+    brain = CerebrumMaximus()
+    asyncio.run(brain.run())

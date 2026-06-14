@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA NetSolutions - Pi Network Authentication</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            color: #333;
+        }
+        h1 { color: #667eea; margin-top: 0; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: scale(1.05); background: #5a67d8; }
+        .user-info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .loading { display: none; text-align: center; margin: 20px 0; }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 8px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 IA NetSolutions</h1>
+        <h2>Connexion Pi Network</h2>
+        <div id="status"></div>
+        <div id="userInfo"></div>
+        <div id="loading" class="loading"><div class="spinner"></div><p>Authentification en cours...</p></div>
+        <button id="loginBtn" style="display:none;">Se connecter avec Pi Network</button>
+        <button id="logoutBtn" style="display:none;">Se déconnecter</button>
+    </div>
+
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+    <script>
+        // Configuration
+        const BACKEND_URL = 'http://localhost:5001'; // À adapter selon votre backend
+        let currentUser = null;
+        let accessToken = null;
+
+        // Éléments DOM
+        const statusDiv = document.getElementById('status');
+        const userInfoDiv = document.getElementById('userInfo');
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loadingDiv = document.getElementById('loading');
+
+        function showStatus(message, isError = false) {
+            statusDiv.innerHTML = `<div class="status ${isError ? 'error' : 'connected'}">${message}</div>`;
+        }
+
+        function showUserInfo(user) {
+            userInfoDiv.innerHTML = `
+                <div class="user-info">
+                    <h3>✅ Connecté en tant que :</h3>
+                    <p><strong>UID :</strong> ${user.uid}</p>
+                    <p><strong>Nom d'utilisateur :</strong> ${user.username}</p>
+                    <p><strong>Access Token :</strong> <code>${accessToken.substring(0, 20)}...</code></p>
+                </div>
+            `;
+            loginBtn.style.display = 'none';
+            logoutBtn.style.display = 'inline-block';
+        }
+
+        function showLoginButton() {
+            userInfoDiv.innerHTML = '';
+            loginBtn.style.display = 'inline-block';
+            logoutBtn.style.display = 'none';
+            currentUser = null;
+            accessToken = null;
+        }
+
+        async function authenticateWithPi() {
+            loadingDiv.style.display = 'block';
+            showStatus('🔄 Initialisation du SDK Pi...');
+
+            try {
+                // 1. Attendre que Pi soit disponible
+                if (typeof Pi === 'undefined') {
+                    throw new Error('SDK Pi non chargé. Vérifiez votre connexion internet.');
+                }
+
+                // 2. Initialiser Pi (Promise-based)
+                showStatus('🔄 Initialisation de Pi Network...');
+                await Pi.init({ version: "2.0", sandbox: true }); // sandbox: true pour développement
+                
+                // 3. Authentifier l'utilisateur
+                showStatus('🔐 Demande d\'authentification...');
+                const authResult = await Pi.authenticate(['username'], (result) => {
+                    console.log('Auth callback:', result);
+                });
+                
+                console.log('Auth result:', authResult);
+                accessToken = authResult.accessToken;
+                const uid = authResult.user.uid;
+                const username = authResult.user.username;
+                
+                showStatus('✅ Authentification Pi réussie ! Validation en cours...');
+                
+                // 4. Envoyer le token au backend pour validation
+                const validationResponse = await fetch(`${BACKEND_URL}/api/pi/validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken, uid, username })
+                });
+                
+                if (validationResponse.ok) {
+                    const sessionData = await validationResponse.json();
+                    currentUser = { uid, username, sessionToken: sessionData.sessionToken };
+                    showUserInfo(currentUser);
+                    showStatus('✅ Authentification complète et validée par le serveur !');
+                    
+                    // Stocker la session localement
+                    localStorage.setItem('pi_session', JSON.stringify({
+                        user: currentUser,
+                        accessToken: accessToken,
+                        expiresAt: Date.now() + 3600000 // 1 heure
+                    }));
+                } else {
+                    const error = await validationResponse.json();
+                    throw new Error(error.message || 'Validation échouée');
+                }
+                
+            } catch (error) {
+                console.error('Erreur d\'authentification:', error);
+                showStatus(`❌ Erreur: ${error.message}`, true);
+                showLoginButton();
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('pi_session');
+            currentUser = null;
+            accessToken = null;
+            showStatus('👋 Déconnecté avec succès.');
+            showLoginButton();
+            
+            // Notifier le backend de la déconnexion
+            fetch(`${BACKEND_URL}/api/pi/logout`, { method: 'POST' }).catch(console.error);
+        }
+
+        // Vérifier une session existante au chargement
+        async function checkExistingSession() {
+            const savedSession = localStorage.getItem('pi_session');
+            if (savedSession) {
+                try {
+                    const session = JSON.parse(savedSession);
+                    if (session.expiresAt > Date.now()) {
+                        // Vérifier la session avec le backend
+                        const response = await fetch(`${BACKEND_URL}/api/pi/check`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sessionToken: session.user.sessionToken })
+                        });
+                        
+                        if (response.ok) {
+                            currentUser = session.user;
+                            accessToken = session.accessToken;
+                            showUserInfo(currentUser);
+                            showStatus('✅ Session restaurée');
+                            return;
+                        }
+                    }
+                } catch (e) { console.error(e); }
+            }
+            showLoginButton();
+            showStatus('🔓 Non connecté. Cliquez sur le bouton pour vous connecter.');
+            
+            // Déclencher l'authentification automatique (optionnel - décommentez pour auto-login)
+            // setTimeout(() => authenticateWithPi(), 1000);
+        }
+
+        // Écouter les événements
+        loginBtn.addEventListener('click', authenticateWithPi);
+        logoutBtn.addEventListener('click', logout);
+        
+        // Initialisation
+        checkExistingSession();
+        
+        // Vérifier que le SDK Pi est chargé
+        if (typeof Pi === 'undefined') {
+            showStatus('⚠️ Chargement du SDK Pi... Patientez quelques secondes.', true);
+            const checkPiInterval = setInterval(() => {
+                if (typeof Pi !== 'undefined') {
+                    clearInterval(checkPiInterval);
+                    showStatus('🔓 SDK Pi chargé. Prêt pour la connexion.');
+                }
+            }, 500);
+        }
+    </script>
+</body>
+</html>

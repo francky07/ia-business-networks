@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""
+CEO UNIFIED – Fusion de toutes les versions (génie, entrepreneur, neurones, supraskill)
+Actions réelles, compétences système, décision collective.
+"""
+import time, os, json, sqlite3, subprocess, requests, smtplib, ssl, glob, shutil, random, math
+from datetime import datetime
+from email.mime.text import MIMEText
+from web3 import Web3
+
+# ==================== CONFIGURATION ====================
+DB_PATH = os.path.expanduser("~/ia_shared/db/nexus.db")
+LOG_FILE = os.path.expanduser("~/ceo_unified.log")
+STATE_FILE = os.path.expanduser("~/ceo_unified_state.json")
+SMTP_SERVER = "smtp-relay.brevo.com"
+SMTP_PORT = 587
+SMTP_USER = "seckndananeuh@gmail.com"
+SMTP_PASSWORD = "xsmtpsib-9364b75a7aa91f2040c5ccc04b90c01224b070f1efc4b97d5c21a896ec6e8527-BheO7lIdmm52XdF4"
+PAYPAL_EMAIL = "faraseck@hotmail.fr"
+NB_AGENTS = 800          # Agents décisionnels
+NB_BOOSTERS = 800        # Boosters (plus réactifs)
+
+def log(msg, level="INFO"):
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{ts}] [{level}] {msg}"
+    print(line)
+    with open(LOG_FILE, "a") as f:
+        f.write(line + "\n")
+
+def get_env(key, default=None):
+    env_file = os.path.expanduser("~/.env_ia_business")
+    if os.path.exists(env_file):
+        with open(env_file) as f:
+            for line in f:
+                if line.startswith("export "): line = line[7:]
+                if "=" in line and line.split("=")[0].strip() == key:
+                    return line.split("=",1)[1].strip().strip("\"'")
+    return default
+
+def send_telegram(msg):
+    token = get_env("TELEGRAM_BOT_TOKEN")
+    chat_id = get_env("TELEGRAM_CHAT_ID")
+    if token and chat_id and token != "VOTRE_TOKEN":
+        try:
+            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat_id, "text": msg}, timeout=5)
+            log("Notification Telegram envoyée", "ACTION")
+        except: pass
+
+# ==================== COLLECTE DE DONNÉES ====================
+def get_bnb_usd_rate():
+    try:
+        r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=usd", timeout=5)
+        if r.status_code == 200:
+            return float(r.json()["binancecoin"]["usd"])
+    except: pass
+    return 600.0
+
+def get_bnb_balance():
+    try:
+        w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed1.binance.org"))
+        address = "0xba23A87e6f67a1becC59AAEd4c2DDa8C216F9363"
+        bal_wei = w3.eth.get_balance(address)
+        return float(w3.from_wei(bal_wei, 'ether'))
+    except Exception as e:
+        log(f"Erreur BNB: {e}", "ERROR")
+        return 0.0
+
+def get_db_stats():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM emails WHERE vendu=0")
+        stock = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM leads")
+        leads = c.fetchone()[0]
+        conn.close()
+        return stock, leads
+    except:
+        return 0, 0
+
+def get_bot_count():
+    out = subprocess.run(["tmux", "ls"], capture_output=True, text=True).stdout
+    sessions = [l for l in out.splitlines() if "ceo_unified" not in l and l]
+    return len(sessions)
+
+# ==================== AGENTS DÉCISIONNELS (essaim) ====================
+class DecisionAgent:
+    def __init__(self, agent_id, booster=False):
+        self.id = agent_id
+        self.booster = booster
+        self.bias = random.uniform(-0.3, 0.3)
+        self.weight = 2.0 if booster else 1.0
+    def vote(self, context):
+        scores = [0.0, 0.0, 0.0, 0.0, 0.0]  # 0=vendre, 1=marketing, 2=recruter, 3=prix, 4=investir
+        stock = context.get("stock",0)
+        revenue = context.get("revenue",0)
+        leads = context.get("leads",0)
+        bots = context.get("bots",0)
+        if stock > 50 and revenue < 1:
+            scores[0] += 0.9
+        if leads < 20:
+            scores[1] += 0.8
+        if bots < 12:
+            scores[2] += 0.9
+        if stock > 500:
+            scores[3] += 0.7   # baisser prix
+        elif stock < 50 and revenue > 1:
+            scores[3] += 0.6   # augmenter prix
+        if revenue > 5 and bots < 40:
+            scores[4] += 0.7
+        if self.booster:
+            for i in range(5): scores[i] *= 1.2
+        for i in range(5):
+            scores[i] += random.uniform(-0.1,0.1)*self.bias
+        return scores
+
+class SwarmDecision:
+    def __init__(self, n_agents=800, n_boosters=800):
+        self.agents = [DecisionAgent(i, booster=False) for i in range(n_agents)]
+        self.boosters = [DecisionAgent(i, booster=True) for i in range(n_boosters)]
+        self.all_agents = self.agents + self.boosters
+        self.weights = [1.0]*len(self.all_agents)
+    def decide(self, context):
+        votes = [0.0]*5
+        for i, ag in enumerate(self.all_agents):
+            scores = ag.vote(context)
+            for a in range(5):
+                votes[a] += scores[a] * self.weights[i] * ag.weight
+        total = sum(votes)
+        if total==0: total=1
+        probs = [v/total for v in votes]
+        action = random.choices(range(5), weights=probs, k=1)[0]
+        return action, probs
+    def reward(self, action, reward, context):
+        for i, ag in enumerate(self.all_agents):
+            scores = ag.vote(context)
+            if scores[action] > 0.2:
+                self.weights[i] += 0.005 * max(0, reward)
+        total = sum(self.weights)
+        if total>0: self.weights = [w/total for w in self.weights]
+
+# ==================== ACTIONS RÉELLES ====================
+def action_vendre():
+    log("ACTION: Vente massive", "ACTION")
+    subprocess.run(["python", os.path.expanduser("~/departement_ventes/sell_emails_paypal.py")])
+
+def action_marketing():
+    log("ACTION: Campagne marketing par email", "ACTION")
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT email FROM leads WHERE contacte=0 LIMIT 50")
+        leads = c.fetchall()
+        if not leads:
+            log("Aucun lead à contacter", "INFO")
+            return
+        subject = "Offre spéciale IA Business – Liste d'emails qualifiés"
+        body = f"""<html><body><h2>Bonjour,</h2><p>Notre IA a généré une liste d'emails vérifiés.</p><p>Prix : {load_state().get('prix_email',0.01)} USD/email. <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business={PAYPAL_EMAIL}&amount=1.00&currency_code=USD">Acheter maintenant</a></p><p>Cordialement,<br>IA Business</p></body></html>"""
+        context = ssl.create_default_context()
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls(context=context)
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            for (email,) in leads:
+                msg = MIMEText(body, 'html')
+                msg['Subject'] = subject
+                msg['From'] = SMTP_USER
+                msg['To'] = email
+                server.send_message(msg)
+            c.execute("UPDATE leads SET contacte=1 WHERE contacte=0")
+            conn.commit()
+        log(f"Email envoyé à {len(leads)} leads", "ACTION")
+        send_telegram(f"📢 Campagne marketing : {len(leads)} leads contactés.")
+    except Exception as e:
+        log(f"Erreur marketing: {e}", "ERROR")
+    finally:
+        conn.close()
+
+def action_recruter():
+    log("ACTION: Recrutement d'un booster", "ACTION")
+    subprocess.run(["tmux", "new-session", "-d", "-s", f"recruit_{int(time.time())}", "python ~/ia_booster_agence.py"], shell=True)
+
+def action_prix(up=True):
+    state = load_state()
+    if up:
+        new_price = round(state.get("prix_email", 0.01) + 0.005, 3)
+    else:
+        new_price = max(0.002, state.get("prix_email", 0.01) - 0.005)
+    state["prix_email"] = new_price
+    save_state(state)
+    subprocess.run(f"sed -i 's/montant = nb \\* [0-9.]*/montant = nb * {new_price}/' ~/departement_ventes/sell_emails_paypal.py", shell=True)
+    log(f"Prix {'augmenté' if up else 'diminué'} à {new_price} USD", "ACTION")
+    send_telegram(f"💰 Prix des emails {'augmenté' if up else 'diminué'} à {new_price} USD.")
+
+def action_investir():
+    log("ACTION: Investissement (lance deux boosters)", "ACTION")
+    for _ in range(2):
+        subprocess.run(["tmux", "new-session", "-d", "-s", f"invest_{int(time.time())}", "python ~/ia_booster_agence.py"], shell=True)
+    send_telegram("🚀 Investissement réalisé : deux boosters supplémentaires.")
+
+# ==================== COMPÉTENCES SYSTÈME ====================
+def optimiser_base_sqlite():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("VACUUM")
+        conn.execute("REINDEX")
+        conn.close()
+        log("Base SQLite optimisée (VACUUM + REINDEX)", "SYSTEM")
+    except Exception as e:
+        log(f"Erreur optimisation SQLite: {e}", "ERROR")
+
+def nettoyer_logs_anciens(days=7):
+    log_files = glob.glob(os.path.expanduser("~/ia_ceo_state/*.log")) + \
+                glob.glob(os.path.expanduser("~/cerebrum/logs/*.log")) + \
+                glob.glob(os.path.expanduser("~/departement_ventes/*.log")) + \
+                glob.glob(os.path.expanduser("~/ceo_*.log"))
+    now = time.time()
+    deleted = 0
+    for f in log_files:
+        if os.path.isfile(f) and now - os.path.getmtime(f) > days * 86400:
+            os.remove(f)
+            deleted += 1
+    log(f"{deleted} anciens logs supprimés", "SYSTEM")
+
+def surveiller_ressources():
+    try:
+        load = os.getloadavg()[0] if hasattr(os, 'getloadavg') else 0
+        with open("/proc/meminfo") as f:
+            meminfo = f.read()
+        mem_total = int([l for l in meminfo.splitlines() if "MemTotal" in l][0].split()[1])
+        mem_avail = int([l for l in meminfo.splitlines() if "MemAvailable" in l][0].split()[1])
+        mem_usage = (mem_total - mem_avail) / mem_total * 100
+        disk = shutil.disk_usage("/")
+        disk_usage = (disk.used / disk.total) * 100
+        if load > 2.0 or mem_usage > 80 or disk_usage > 85:
+            alert = f"⚠️ Ressources élevées : CPU load={load:.2f}, Mémoire={mem_usage:.1f}%, Disque={disk_usage:.1f}%"
+            log(alert, "WARNING")
+            send_telegram(alert)
+        return {"load": load, "mem_usage": mem_usage, "disk_usage": disk_usage}
+    except Exception as e:
+        log(f"Erreur surveillance ressources: {e}", "ERROR")
+        return {}
+
+def redemarrer_bot_dead(bot_name):
+    out = subprocess.run(["tmux", "ls"], capture_output=True, text=True).stdout
+    if bot_name not in out:
+        log(f"Bot {bot_name} absent → redémarrage", "SYSTEM")
+        if bot_name == "agence_kays":
+            subprocess.run(["tmux", "new-session", "-d", "-s", "agence_kays", "python ~/agence_kays/agence.py"], shell=True)
+        elif bot_name == "ventes":
+            subprocess.run(["tmux", "new-session", "-d", "-s", "ventes", "cd ~/departement_ventes && python ventes.py"], shell=True)
+        elif bot_name == "ia_net":
+            subprocess.run(["tmux", "new-session", "-d", "-s", "ia_net", "python ~/ia_net_pro.py"], shell=True)
+        # Ajoutez d'autres bots si nécessaire
+        send_telegram(f"🔄 Bot {bot_name} redémarré automatiquement.")
+
+def analyser_performances():
+    err_count = 0
+    for log_file in glob.glob(os.path.expanduser("~/ia_ceo_state/*.log")):
+        try:
+            with open(log_file) as f:
+                err_count += sum(1 for line in f if "ERROR" in line or "Exception" in line)
+        except: pass
+    if err_count > 50:
+        log(f"Nombre élevé d'erreurs récentes : {err_count}", "WARNING")
+        send_telegram(f"⚠️ {err_count} erreurs détectées dans les logs – vérifier les bots.")
+    return err_count
+
+# ==================== ÉTAT PERSISTANT ====================
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE) as f:
+            return json.load(f)
+    return {"seuil_vente": 10, "prix_email": 0.01, "objectif_revenu": 10.0, "derniere_action": "", "historique": []}
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+# ==================== BOUCLE PRINCIPALE ====================
+def main():
+    log("🧠 CEO UNIFIED – Fusion ultime (agents, neurones, système, actions réelles)", "START")
+    state = load_state()
+    swarm = SwarmDecision(NB_AGENTS, NB_BOOSTERS)
+    cycle = 0
+    last_action_time = 0
+    last_optim = 0
+    last_clean = 0
+    last_health = 0
+    last_report = 0
+    last_reward = 0.0
+
+    while True:
+        try:
+            cycle += 1
+            # Collecte des données
+            bnb = get_bnb_balance()
+            rate = get_bnb_usd_rate()
+            bnb_usd = bnb * rate
+            stock, leads = get_db_stats()
+            bots = get_bot_count()
+            context = {"stock": stock, "revenue": bnb_usd, "leads": leads, "bots": bots}
+            now = time.time()
+
+            # Décision stratégique toutes les 60 secondes
+            if now - last_action_time >= 60:
+                action, probs = swarm.decide(context)
+            # action 1 = marketing (ignoré)
+                log(f"Décision: action={action} (probs={probs})", "DECISION")
+                last_action_time = now
+                # Exécution de l'action
+                if action == 0 and stock > 5:
+                    action_vendre()
+                elif action == 2 and bots < 15:
+                    action_recruter()
+                elif action == 3:
+                    if stock > 500:
+                        action_prix(up=False)
+                    elif stock < 50 and bnb_usd > 1:
+                        action_prix(up=True)
+                elif action == 4 and bnb_usd > 5:
+                    action_investir()
+                # Récompense et apprentissage (simplifié)
+                reward = bnb_usd - last_reward
+                swarm.reward(action, reward, context)
+                last_reward = bnb_usd
+                # Mémoriser la décision
+                state["derniere_action"] = str(action)
+                state["historique"].append({"time": now, "action": action, "reward": reward})
+                if len(state["historique"]) > 100:
+                    state["historique"] = state["historique"][-100:]
+                save_state(state)
+
+            # Tâches système périodiques
+            if now - last_optim > 21600:  # toutes les 6h
+                optimiser_base_sqlite()
+                last_optim = now
+            if now - last_clean > 86400:  # tous les jours
+                nettoyer_logs_anciens()
+                last_clean = now
+            if now - last_health > 300:   # toutes les 5 min
+                surveiller_ressources()
+                analyser_performances()
+                for bot in ["agence_kays", "ventes", "ia_net"]:
+                    redemarrer_bot_dead(bot)
+                last_health = now
+
+            # Ajustement adaptatif du seuil de vente (apprentissage)
+            if bnb_usd > 0.5 and stock > 10:
+                state["seuil_vente"] = max(5, state["seuil_vente"] - 1)
+            elif bnb_usd < 0.1 and stock > 100:
+                state["seuil_vente"] = min(20, state["seuil_vente"] + 1)
+            save_state(state)
+
+            # Rapport horaire
+            if now - last_report >= 3600:
+                rapport = (
+                    f"📊 RAPPORT CEO UNIFIED - {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+                    f"💰 BNB: {bnb_usd:.2f} USD\n📧 Stock: {stock}\n👥 Leads: {leads}\n🤖 Bots: {bots}\n"
+                    f"⚙️ Seuil vente: {state['seuil_vente']} | Prix: {state['prix_email']} USD\n"
+                    f"🎯 Objectif revenu: {state['objectif_revenu']:.2f} USD\n"
+                    f"💡 Dernière action: {state['derniere_action']}"
+                )
+                log(rapport, "REPORT")
+                send_telegram(rapport)
+                last_report = now
+
+            # Log de cycle simple
+            if cycle % 10 == 0:
+                log(f"Cycle {cycle}: BNB={bnb_usd:.2f} USD, Stock={stock}, Leads={leads}, Bots={bots}")
+            time.sleep(60)
+
+        except Exception as e:
+            log(f"Erreur critique: {e}", "ERROR")
+            time.sleep(60)
+
+if __name__ == "__main__":
+    main()

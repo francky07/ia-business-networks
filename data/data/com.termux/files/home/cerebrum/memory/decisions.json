@@ -1,0 +1,13 @@
+{
+  "seuils": {
+    "vente_emails": 5,
+    "trade_crypto": 80,
+    "arbitrage_profit": 0.5
+  },
+  "historique": [],
+  "stats": {
+    "ventes": 0,
+    "trades": 0,
+    "arbitrages": 0
+  }
+}

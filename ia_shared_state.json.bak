@@ -1,0 +1,49 @@
+{
+  "last_update": 1781022622,
+  "ia_net": {
+    "cycle": 47,
+    "actions": 184,
+    "balance_bnb": 0.011405195,
+    "ts": 1781022622
+  },
+  "ia_reelle": {
+    "cycle": 3,
+    "usd_earned": 0.053000000000000005,
+    "ts": 1781021917
+  },
+  "opp_auto": {
+    "cycle": 74,
+    "opportunities": [
+      {
+        "title": "Daily Crypto Discussion - June 8, 2026 (GMT+0)",
+        "link": "https://www.reddit.com/r/CryptoCurrency/comments/1u0nq5h/daily_crypto_discussion_june_8_2026_gmt0/",
+        "time": "2026-06-09 16:16:07.096487"
+      },
+      {
+        "title": "Bless",
+        "link": "https://www.reddit.com/r/CryptoCurrency/comments/1u184nk/bless/",
+        "time": "2026-06-09 16:16:07.097491"
+      },
+      {
+        "title": "Tale of a crypto trader",
+        "link": "https://www.reddit.com/r/CryptoCurrency/comments/1u0zadp/tale_of_a_crypto_trader/",
+        "time": "2026-06-09 16:16:07.098476"
+      },
+      {
+        "title": "Trump family has made $2,300,000,000 in profit from its crypto ventures.",
+        "link": "https://www.reddit.com/r/CryptoCurrency/comments/1u17y78/trump_family_has_made_2300000000_in_profit_from/",
+        "time": "2026-06-09 16:16:07.099319"
+      },
+      {
+        "title": "What was your biggest fumble? Closest you ever got to generational wealth? Share your story",
+        "link": "https://www.reddit.com/r/CryptoCurrency/comments/1u0ymba/what_was_your_biggest_fumble_closest_you_ever_got/",
+        "time": "2026-06-09 16:16:07.100144"
+      }
+    ],
+    "ts": 1781022622
+  },
+  "booster": {
+    "status": "ok"
+  },
+  "commands": []
+}

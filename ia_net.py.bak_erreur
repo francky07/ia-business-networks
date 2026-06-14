@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+import os, time, json, random, secrets, base64, requests, hashlib
+from datetime import datetime
+from web3 import Web3
+from ecdsa import SigningKey, SECP256k1
+
+# === Configuration ===
+PRIVATE_KEY = "5a72dc7a6a3a2d56b6e1fbdb5f4e11393190da2303df376a78277a3de2197b80"
+OPENAI_API_KEY = ""
+GITHUB_USERNAME = "francky07"
+GITHUB_TOKEN = "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"
+TELEGRAM_BOT_TOKEN = "6828632307:AAFf6yu_UyrVe4JyRrjaKNEbbKSFuT8cpZM"
+TELEGRAM_CHAT_ID = ""
+AFF_LINK = "https://www.aliexpress.com/ssr/300003044/global-june-mega-sale-2026-27gyo9?disableNav=YESAFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"pha_manifest=ssrAFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"_immersiveMode=trueAFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"businessCode=guideAFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"wh_pid=300003044/global-june-mega-sale-2026-27gyo9AFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"wh_ttid=adcAFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"adc_strategy=prerenderAFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"_wv_preload=trueAFF_LINK = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"adc_direct_ssr=true"
+
+w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed1.defibit.io"))
+account = w3.eth.account.from_key(PRIVATE_KEY)
+WALLET = account.address
+print(f"✅ Wallet: {WALLET}")
+
+MEM_FILE = "ia_mem.json"
+def load_memory():
+    if os.path.exists(MEM_FILE):
+        with open(MEM_FILE) as f: return json.load(f)
+    return {"stats":{"cycle":0,"actions":0},"errors":[]}
+def save_memory(d): open(MEM_FILE,"w").write(json.dumps(d))
+
+def send_telegram(message):
+    global TELEGRAM_CHAT_ID
+    if not TELEGRAM_BOT_TOKEN: return
+    if not TELEGRAM_CHAT_ID:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+            r = requests.get(url, timeout=15)
+            if r.status_code == 200 and r.json()["result"]:
+                TELEGRAM_CHAT_ID = str(r.json()["result"][0]["message"]["chat"]["id"])
+        except: pass
+    if TELEGRAM_CHAT_ID:
+        for _ in range(3):
+            try:
+                url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=15)
+                break
+            except: time.sleep(2)
+
+class RLAgent:
+    def __init__(self, name, alpha=0.1, gamma=0.9, epsilon=0.2):
+        self.name=name; self.alpha=alpha; self.gamma=gamma; self.epsilon=epsilon
+        self.q={}; self.last_state=None; self.last_action=None; self.last_reward=0
+    def _state(self, balance, err_rate, cycle):
+        b=int(balance*100) if balance<1 else min(5,int(balance))
+        e=0 if err_rate<0.05 else (1 if err_rate<0.2 else 2)
+        c=cycle%10
+        return (b,e,c)
+    def act(self, balance, err_rate, cycle):
+        s=self._state(balance,err_rate,cycle)
+        if random.random()<self.epsilon:
+            a=random.randint(0,4)
+        else:
+            qv=[self.q.get((s,a),0.0) for a in range(5)]
+            a=max(range(5), key=lambda x: qv[x])
+        self.last_state=s; self.last_action=a
+        return a
+    def reward(self,r): self.last_reward=r
+    def commit(self, balance, err_rate, cycle):
+        if self.last_state is not None:
+            ns=self._state(balance,err_rate,cycle)
+            old=self.q.get((self.last_state,self.last_action),0.0)
+            nxt_max=max([self.q.get((ns,a),0.0) for a in range(5)], default=0.0)
+            new=old+self.alpha*(self.last_reward+self.gamma*nxt_max-old)
+            self.q[(self.last_state,self.last_action)]=new
+            self.last_state=None; self.last_action=None; self.last_reward=0
+rl_agents = [RLAgent(f"RL_{i}", epsilon=0.15+0.02*i) for i in range(10)]
+
+def inno_idea(): print(f"💡 Innovation: {random.sample(['NFT','Bot Discord','Jeu'],2)}")
+def leader_goal(): print(f"🎯 Objectif: {random.choice(['Augmenter fichiers','Réduire erreurs'])}")
+def opp_scan(): print(f"🔍 Opportunité: {random.choice(['Tendance IA','Prix BNB bas'])}")
+def creativity(): print(f"🎨 Concept: {random.sample(['blog','bot','app'],2)}")
+def strategy_pace(errors): print(f"⚙️ Stratégie: {'Expansion' if len(errors)<5 else 'Consolidation'}")
+
+class OpAgents:
+    def __init__(self,parent): self.parent=parent
+    def run(self):
+        agents=[("DG","Coordination"),("S1","Strat"),("S2","Strat"),("R1","Ress"),("R2","Ress")]+[(f"M{i}","Rech") for i in range(1,5)]+[(f"V{i}","Tech") for i in range(1,3)]+[(f"O{i}","Opp") for i in range(1,3)]+[(f"C{i}","Contenu") for i in range(1,6)]+[(f"D{i}","Dev") for i in range(1,5)]+[(f"B{i}","BDD") for i in range(1,3)]+[(f"MK{i}","Marketing") for i in range(1,5)]+[(f"SEO{i}","SEO") for i in range(1,4)]+[(f"SO{i}","Social") for i in range(1,3)]+[(f"DA{i}","Analyse") for i in range(1,3)]+[(f"RO{i}","Revenus") for i in range(1,3)]+[(f"Q{i}","Qualité") for i in range(1,3)]+[(f"SU{i}","Support") for i in range(1,3)]+[("Doc","Admin")]+[(f"CY{i}","Sécu") for i in range(1,3)]+[(f"AU{i}","Audit") for i in range(1,3)]
+        for name,role in agents:
+            self.parent.log_action(name,role,"OK")
+        return True
+
+class NetSolutions:
+    def __init__(self):
+        self.wallet = WALLET
+        self.mem = load_memory()
+        self.op = OpAgents(self)
+        self.rl = rl_agents
+        self.prev_balance = 0.0
+        self.prev_errors = 0
+    def log_action(self,n,r,s): print(f"  [{n}] {r}: {s}")
+    def check_balance(self):
+        try: return float(w3.from_wei(w3.eth.get_balance(self.wallet),'ether'))
+        except: return 0.0
+    def task_blog(self):
+        article = "<p>Découvrez comment gagner des USDC avec Binance via notre lien de parrainage !</p>"
+        if OPENAI_API_KEY and OPENAI_API_KEY.startswith("sk-"):
+            try:
+                h={"Authorization":f"Bearer {OPENAI_API_KEY}","Content-Type":"application/json"}
+                d={"model":"gpt-3.5-turbo","messages":[{"role":"user","content":f"Rédige un court article SEO sur crypto et IA, avec appel aux dons sur {self.wallet} et lien parrainage Binance: {AFF_LINK}."}]}
+                r=requests.post("https://api.openai.com/v1/chat/completions", headers=h, json=d, timeout=15)
+                if r.status_code==200: article=r.json()["choices"][0]["message"]["content"]
+            except: pass
+    html = f"""<html><body><h1>Blog IA NetSolutions</h1>{article}<hr><p>Dons : {self.wallet}</p><p>🔗 <a href="{AFF_BINANCE}" target="_blank">Gagnez des USDC avec Binance</a></p><p>🔗 <a href="{AFF_ALIEXPRESS}" target="_blank">Promos AliExpress</a></p></body></html>"""
+        with open("index.html","w") as f: f.write(html)
+        print("  Blog généré (index.html)")
+        if GITHUB_TOKEN and GITHUB_USERNAME:
+            try:
+                headers={"Authorization":f"token {GITHUB_TOKEN}","Accept":"application/vnd.github.v3+json"}
+                repo="ia-net-blog"
+                r=requests.get(f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}", headers=headers)
+                if r.status_code==404:
+                    requests.post("https://api.github.com/user/repos", headers=headers, json={"name":repo,"private":False})
+                url=f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/index.html"
+                r=requests.get(url, headers=headers)
+                sha=r.json()["sha"] if r.status_code==200 else None
+                encoded=base64.b64encode(html.encode()).decode()
+                data={"message":"Deploy IA","content":encoded,"branch":"main"}
+                if sha: data["sha"]=sha
+                r=requests.put(url, headers=headers, json=data)
+                if r.status_code in (200,201):
+                    msg=f"✅ Blog déployé : https://{GITHUB_USERNAME}.github.io/{repo}/"
+                    print(f"  {msg}")
+                    send_telegram(msg)
+            except Exception as e: print(f"  ❌ GitHub error: {e}")
+        return "blog"
+    def task_telegram(self):
+        with open("telegram_bot.py","w") as f: f.write("TOKEN='FAKE'\nprint('Remplacer token')")
+        print("  Script Telegram généré")
+        return "telegram"
+    def task_saas(self):
+        with open("app.py","w") as f: f.write(f"import streamlit as st\nst.title('Outil gratuit')\nst.write(f'Dons : {self.wallet}')")
+        print("  App Streamlit générée")
+        return "saas"
+    def run(self):
+        print("🚀 IA NetSolutions - Version stable")
+        cycle=0
+        while True:
+            cycle+=1
+            self.mem["stats"]["cycle"]=cycle
+            self.mem["stats"]["actions"]=self.mem["stats"].get("actions",0)+1
+            print(f"\n📌 Cycle {cycle} - {datetime.now()}")
+            bal=self.check_balance()
+            print(f"💰 Solde BNB: {bal:.8f}")
+            err_rate=len(self.mem.get("errors",[]))/100.0
+            votes={0:0,1:0,2:0,3:0,4:0}
+            for ag in self.rl:
+                a=ag.act(bal, err_rate, cycle)
+                votes[a]+=1
+            action=max(votes, key=votes.get)
+            reward = max(0.0, float(bal) - float(self.prev_balance)) * 10.0 + max(0.0, float(self.prev_errors) - float(len(self.mem.get("errors", [])))) * 5.0
+            for ag in self.rl:
+                ag.reward(reward)
+                ag.commit(bal, err_rate, cycle+1)
+            self.prev_balance = bal
+            self.prev_errors = len(self.mem.get("errors",[]))
+            if action==0: self.task_blog()
+            elif action==1: self.task_telegram()
+            elif action==2: self.task_saas()
+            elif action==3:
+                self.rl.append(RLAgent(f"RL_Gen{len(self.rl)}", epsilon=0.2))
+                print("  ✅ Nouvel agent RL créé")
+            elif action==4:
+                for ag in self.rl: ag.epsilon = max(0.01, ag.epsilon*0.99)
+                print("  ✅ Optimisation RL")
+            self.op.run()
+            if cycle%10==0:
+                inno_idea(); leader_goal(); opp_scan(); creativity(); strategy_pace(self.mem.get("errors",[]))
+            save_memory(self.mem)
+            time.sleep(600)
+
+if __name__=="__main__":
+    send_telegram("🚀 IA NetSolutions redémarrée (version corrigée)")
+    NetSolutions().run()
+
+# ========== MODULES DE MONÉTISATION RÉELLE ==========
+import threading
+import sqlite3
+import hashlib
+from decimal import Decimal
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+# ---------- Base de données utilisateurs ----------
+DB_FILE = "premium_users.db"
+conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS users
+             (wallet TEXT PRIMARY KEY, credits REAL, subscription_end INTEGER, api_key TEXT)''')
+conn.commit()
+
+def add_credits(wallet, amount):
+    c.execute("INSERT OR REPLACE INTO users (wallet, credits) VALUES (?, COALESCE((SELECT credits FROM users WHERE wallet=?), 0) + ?)", (wallet, wallet, amount))
+    conn.commit()
+
+def get_credits(wallet):
+    c.execute("SELECT credits FROM users WHERE wallet=?", (wallet,))
+    row = c.fetchone()
+    return row[0] if row else 0.0
+
+def deduct_credit(wallet, cost):
+    bal = get_credits(wallet)
+    if bal >= cost:
+        c.execute("UPDATE users SET credits = credits - ? WHERE wallet=?", (cost, wallet))
+        conn.commit()
+        return True
+    return False
+
+def generate_api_key(wallet):
+    key = hashlib.sha256(f"{wallet}{secrets.token_hex(8)}".encode()).hexdigest()[:16]
+    c.execute("UPDATE users SET api_key = ? WHERE wallet=?", (key, wallet))
+    conn.commit()
+    return key
+
+# ---------- Détection automatique des paiements ----------
+def verify_payment(tx_hash):
+    """Vérifie une transaction BSC (simulé pour l'exemple)"""
+    try:
+        w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed1.defibit.io"))
+        tx = w3.eth.get_transaction(tx_hash)
+        if tx and tx['to'] and tx['to'].lower() == WALLET.lower():
+            value = w3.from_wei(tx['value'], 'ether')
+            return value, tx['from']
+    except: pass
+    return 0, None
+
+# Thread de surveillance des paiements entrants
+def payment_monitor():
+    last_block = w3.eth.block_number
+    while True:
+        try:
+            current_block = w3.eth.block_number
+            for block_num in range(last_block+1, current_block+1):
+                block = w3.eth.get_block(block_num, full_transactions=True)
+                for tx in block.transactions:
+                    if tx['to'] and tx['to'].lower() == WALLET.lower():
+                        value = w3.from_wei(tx['value'], 'ether')
+                        sender = tx['from']
+                        # Créditer l'utilisateur (1 BNB = 100 crédits)
+                        credits = float(value) * 100
+                        add_credits(sender, credits)
+                        send_telegram(f"💸 Paiement reçu de {sender}: {value} BNB → {credits} crédits")
+            last_block = current_block
+        except Exception as e:
+            print(f"[PaymentMonitor] Erreur: {e}")
+        time.sleep(60)
+
+threading.Thread(target=payment_monitor, daemon=True).start()
+
+# ---------- API REST (FastAPI style avec Flask) ----------
+api_app = Flask(__name__)
+CORS(api_app)
+
+@api_app.route('/generate', methods=['POST'])
+def generate():
+    data = request.json
+    api_key = data.get('api_key')
+    if not api_key:
+        return jsonify({"error": "Missing api_key"}), 401
+    c.execute("SELECT wallet FROM users WHERE api_key=?", (api_key,))
+    row = c.fetchone()
+    if not row:
+        return jsonify({"error": "Invalid API key"}), 401
+    wallet = row[0]
+    cost = 0.01  # coût en crédits par génération
+    if not deduct_credit(wallet, cost):
+        return jsonify({"error": "Insufficient credits"}), 402
+    # Générer du contenu (exemple)
+    prompt = data.get('prompt', "Écris un article court")
+    # Utiliser OpenAI si dispo, sinon générique
+    content = f"Article généré via API pour {wallet}: {prompt}"
+    return jsonify({"content": content, "credits_left": get_credits(wallet)})
+
+# Lancer l'API dans un thread séparé
+def start_api():
+    api_app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+threading.Thread(target=start_api, daemon=True).start()
+print("🌐 API REST démarrée sur port 5000")
+
+# ---------- Bot Telegram premium ----------
+TELEGRAM_PREMIUM_COST = 1.0  # crédits pour accès premium
+
+def telegram_bot_polling():
+    import telegram
+    from telegram.ext import Updater, CommandHandler, MessageHandler, filters
+    if not TELEGRAM_BOT_TOKEN:
+        return
+    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+    
+    def start(update, context):
+        user_id = update.effective_user.id
+        # Lier le compte Telegram à un wallet (à faire manuellement)
+        update.message.reply_text("Bienvenue ! Pour utiliser les fonctionnalités premium, envoyez /register <votre_wallet>")
+    
+    def register(update, context):
+        if len(context.args) != 1:
+            update.message.reply_text("Usage: /register 0x...")
+            return
+        wallet = context.args[0]
+        # Vérifier si ce wallet a des crédits
+        if get_credits(wallet) >= TELEGRAM_PREMIUM_COST:
+            c.execute("INSERT OR REPLACE INTO users (wallet, credits) VALUES (?, COALESCE((SELECT credits FROM users WHERE wallet=?), 0))", (wallet, wallet))
+            conn.commit()
+            deduct_credit(wallet, TELEGRAM_PREMIUM_COST)
+            update.message.reply_text("✅ Compte premium activé ! Utilisez /analyse pour des analyses crypto.")
+        else:
+            update.message.reply_text("❌ Crédits insuffisants. Envoyez 0.01 BNB à notre wallet pour obtenir 1 crédit.")
+    
+    def analyse(update, context):
+        user_id = update.effective_user.id
+        # Récupérer wallet lié (simplifié)
+        # Pour simplifier, on suppose que l'utilisateur a enregistré son wallet
+        update.message.reply_text("Analyse en cours... (données simulées) Le prix du BNB est ~600 USDT.")
+    
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("register", register))
+    dp.add_handler(CommandHandler("analyse", analyse))
+    updater.start_polling()
+    print("🤖 Bot Telegram premium démarré")
+
+threading.Thread(target=telegram_bot_polling, daemon=True).start()
+
+# ---------- Facturation à la tâche (exemple agent IA) ----------
+def billable_task(wallet, task_name, cost):
+    if deduct_credit(wallet, cost):
+        # Exécuter la tâche
+        return True
+    return False
+
+# Exemple: l'agent SEO peut être vendu
+def seo_agent_task(wallet, url):
+    if billable_task(wallet, "seo_analysis", 0.5):
+        # Effectuer une analyse SEO (simulation)
+        return {"report": "Analyse SEO terminée", "credits_left": get_credits(wallet)}
+    return {"error": "Crédits insuffisants"}
+
+# ---------- Abonnement mensuel ----------
+def check_subscriptions():
+    while True:
+        c.execute("SELECT wallet, subscription_end FROM users WHERE subscription_end > 0")
+        rows = c.fetchall()
+        now = int(time.time())
+        for wallet, end in rows:
+            if end < now:
+                # Abonnement expiré, retirer les privilèges
+                c.execute("UPDATE users SET subscription_end = 0 WHERE wallet=?", (wallet,))
+                conn.commit()
+                send_telegram(f"⏰ Abonnement expiré pour {wallet}")
+        time.sleep(86400)  # une fois par jour
+
+threading.Thread(target=check_subscriptions, daemon=True).start()
+print("💰 Modules de monétisation actifs : API, Telegram premium, paiements, abonnements")

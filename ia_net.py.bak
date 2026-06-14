@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+import os, time, json, random, secrets, base64, requests, hashlib, threading
+from datetime import datetime
+from web3 import Web3
+from ecdsa import SigningKey, SECP256k1
+
+# ========== CONFIGURATION ==========
+PRIVATE_KEY = "5a72dc7a6a3a2d56b6e1fbdb5f4e11393190da2303df376a78277a3de2197b80"
+OPENAI_API_KEY = "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"
+GITHUB_USERNAME = "francky07"
+GITHUB_TOKEN = "ghp_xxxxxx"   # Remplacez par votre token valide
+TELEGRAM_BOT_TOKEN = "6828632307:AAFf6yu_UyrVe4JyRrjaKNEbbKSFuT8cpZM"
+TELEGRAM_CHAT_ID = ""
+
+# Liens d'affiliation
+AFF_BINANCE = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"
+AFF_ALIEXPRESS = "https://www.aliexpress.com/ssr/300003044/global-june-mega-sale-2026-27gyo9?disableNav=YES&pha_manifest=ssr&_immersiveMode=true&businessCode=guide&wh_pid=300003044/global-june-mega-sale-2026-27gyo9&wh_ttid=adc&adc_strategy=prerender&_wv_preload=true&adc_direct_ssr=true"
+AFF_LBK = "https://www.lbkpro.net/ref/1OB7H"
+AFF_PI = "https://minepi.com/francky070"
+# ===================================
+
+w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed1.binance.org"))
+account = w3.eth.account.from_key(PRIVATE_KEY)
+WALLET = account.address
+print(f"✅ Wallet: {WALLET}")
+
+MEM_FILE = "ia_mem.json"
+def load_memory():
+    if os.path.exists(MEM_FILE):
+        with open(MEM_FILE) as f: return json.load(f)
+    return {"stats":{"cycle":0,"actions":0},"errors":[]}
+def save_memory(d): open(MEM_FILE,"w").write(json.dumps(d))
+
+def send_telegram(message):
+    global TELEGRAM_CHAT_ID
+    if TELEGRAM_BOT_TOKEN:
+        if not TELEGRAM_CHAT_ID:
+            try:
+                url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+                r = requests.get(url, timeout=15)
+                if r.status_code == 200 and r.json()["result"]:
+                    TELEGRAM_CHAT_ID = str(r.json()["result"][0]["message"]["chat"]["id"])
+            except: pass
+        if TELEGRAM_CHAT_ID:
+            for _ in range(3):
+                try:
+                    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=15)
+                    break
+                except: time.sleep(2)
+
+class RLAgent:
+    def __init__(self, name, alpha=0.1, gamma=0.9, epsilon=0.2):
+        self.name=name; self.alpha=alpha; self.gamma=gamma; self.epsilon=epsilon
+        self.q={}; self.last_state=None; self.last_action=None; self.last_reward=0
+    def _state(self, balance, err_rate, cycle):
+        b=int(balance*100) if balance<1 else min(5,int(balance))
+        e=0 if err_rate<0.05 else (1 if err_rate<0.2 else 2)
+        c=cycle%10
+        return (b,e,c)
+    def act(self, balance, err_rate, cycle):
+        s=self._state(balance,err_rate,cycle)
+        if random.random()<self.epsilon:
+            a=random.randint(0,4)
+        else:
+            qv=[self.q.get((s,a),0.0) for a in range(5)]
+            a=max(range(5), key=lambda x: qv[x])
+        self.last_state=s; self.last_action=a
+        return a
+    def reward(self,r): self.last_reward=r
+    def commit(self, balance, err_rate, cycle):
+        if self.last_state is not None:
+            ns=self._state(balance,err_rate,cycle)
+            old=self.q.get((self.last_state,self.last_action),0.0)
+            nxt_max=max([self.q.get((ns,a),0.0) for a in range(5)], default=0.0)
+            new=old+self.alpha*(self.last_reward+self.gamma*nxt_max-old)
+            self.q[(self.last_state,self.last_action)]=new
+            self.last_state=None; self.last_action=None; self.last_reward=0
+rl_agents = [RLAgent(f"RL_{i}", epsilon=0.15+0.02*i) for i in range(10)]
+
+def inno_idea(): print(f"💡 Innovation: {random.sample(['NFT','Bot Discord','Jeu'],2)}")
+def leader_goal(): print(f"🎯 Objectif: {random.choice(['Augmenter fichiers','Réduire erreurs'])}")
+def opp_scan(): print(f"🔍 Opportunité: {random.choice(['Tendance IA','Prix BNB bas'])}")
+def creativity(): print(f"🎨 Concept: {random.sample(['blog','bot','app'],2)}")
+def strategy_pace(errors): print(f"⚙️ Stratégie: {'Expansion' if len(errors)<5 else 'Consolidation'}")
+
+class OpAgents:
+    def __init__(self,parent): self.parent=parent
+    def run(self):
+        agents=[("DG","Coordination"),("S1","Strat"),("S2","Strat"),("R1","Ress"),("R2","Ress")]+[(f"M{i}","Rech") for i in range(1,5)]+[(f"V{i}","Tech") for i in range(1,3)]+[(f"O{i}","Opp") for i in range(1,3)]+[(f"C{i}","Contenu") for i in range(1,6)]+[(f"D{i}","Dev") for i in range(1,5)]+[(f"B{i}","BDD") for i in range(1,3)]+[(f"MK{i}","Marketing") for i in range(1,5)]+[(f"SEO{i}","SEO") for i in range(1,4)]+[(f"SO{i}","Social") for i in range(1,3)]+[(f"DA{i}","Analyse") for i in range(1,3)]+[(f"RO{i}","Revenus") for i in range(1,3)]+[(f"Q{i}","Qualité") for i in range(1,3)]+[(f"SU{i}","Support") for i in range(1,3)]+[("Doc","Admin")]+[(f"CY{i}","Sécu") for i in range(1,3)]+[(f"AU{i}","Audit") for i in range(1,3)]
+        for name,role in agents:
+            self.parent.log_action(name,role,"OK")
+        return True
+
+# ========== AGENTS OPPORTUNITÉS (scanners) ==========
+class OpportunityScanner:
+    def __init__(self):
+        self.running = True
+    def scan_affiliate_updates(self):
+        while self.running:
+            try:
+                print("[Opportunité] Scan affiliation...")
+                with open("ia_mem.json", "r") as f:
+                    mem = json.load(f)
+                if "affiliate_offers" not in mem:
+                    mem["affiliate_offers"] = []
+                # Simuler une nouvelle offre (pour test)
+                if len(mem.get("affiliate_offers", [])) < 3:
+                    mem["affiliate_offers"].append({
+                        "name": "Promo Binance",
+                        "link": "https://www.binance.com/en/activity/referral",
+                        "detected_at": str(datetime.now())
+                    })
+                    with open("ia_mem.json", "w") as f:
+                        json.dump(mem, f)
+            except Exception as e:
+                print(f"Erreur scan: {e}")
+            time.sleep(3600)
+    def scan_trends(self):
+        while self.running:
+            try:
+                print("[Opportunité] Scan tendances...")
+                with open("ia_mem.json", "r") as f:
+                    mem = json.load(f)
+                mem.setdefault("trending_topics", []).append({
+                    "topic": random.choice(["Bitcoin halving", "Ethereum ETF", "AI tokens"]),
+                    "detected_at": str(datetime.now())
+                })
+                with open("ia_mem.json", "w") as f:
+                    json.dump(mem, f)
+            except: pass
+            time.sleep(7200)
+    def scan_airdrops(self):
+        while self.running:
+            try:
+                print("[Opportunité] Scan airdrops...")
+                with open("ia_mem.json", "r") as f:
+                    mem = json.load(f)
+                mem.setdefault("airdrops", []).append({
+                    "name": random.choice(["Arbitrum", "zkSync", "LayerZero"]),
+                    "detected_at": str(datetime.now())
+                })
+                with open("ia_mem.json", "w") as f:
+                    json.dump(mem, f)
+            except: pass
+            time.sleep(10800)
+    def start(self):
+        t1 = threading.Thread(target=self.scan_affiliate_updates, daemon=True)
+        t2 = threading.Thread(target=self.scan_trends, daemon=True)
+        t3 = threading.Thread(target=self.scan_airdrops, daemon=True)
+        t1.start(); t2.start(); t3.start()
+        print("🚀 Agents opportunités démarrés")
+
+# Initialisation des scanners (non bloquants)
+_scanner = OpportunityScanner()
+_scanner.start()
+
+# ========== CLASSE PRINCIPALE ==========
+class NetSolutions:
+    def __init__(self):
+        self.wallet = WALLET
+        self.mem = load_memory()
+        self.op = OpAgents(self)
+        self.rl = rl_agents
+        self.prev_balance = 0.0
+        self.prev_errors = 0
+    def log_action(self,n,r,s): print(f"  [{n}] {r}: {s}")
+    def check_balance(self):
+        try: return float(w3.from_wei(w3.eth.get_balance(self.wallet),'ether'))
+        except: return 0.0
+    def task_blog(self):
+        article = "<p>Découvrez nos partenaires : Binance, AliExpress, LBK Pro et Pi Network.</p>"
+        if OPENAI_API_KEY and OPENAI_API_KEY.startswith("sk-"):
+            try:
+                h={"Authorization":f"Bearer {OPENAI_API_KEY}","Content-Type":"application/json"}
+                d={"model":"gpt-3.5-turbo","messages":[{"role":"user","content":f"Rédige un court article SEO sur crypto et IA, avec appel aux dons sur {self.wallet} et nos liens partenaires."}]}
+                r=requests.post("https://api.openai.com/v1/chat/completions", headers=h, json=d, timeout=15)
+                if r.status_code==200: article=r.json()["choices"][0]["message"]["content"]
+            except: pass
+        html = f"""<html><body><h1>Blog IA NetSolutions</h1>{article}<hr><p>Dons : {self.wallet}</p><p><a href="{AFF_BINANCE}" target="_blank">Binance - Gagnez des USDC</a></p><p><a href="{AFF_ALIEXPRESS}" target="_blank">AliExpress - Promos exclusives</a></p><p><a href="{AFF_LBK}" target="_blank">LBK Pro - Parrainage crypto</a></p><p><a href="{AFF_PI}" target="_blank">Pi Network - Rejoignez la communauté (code: francky070)</a></p></body></html>"""
+        with open("index.html","w") as f: f.write(html)
+        print("  Blog généré (index.html)")
+        if GITHUB_TOKEN and GITHUB_USERNAME:
+            try:
+                headers={"Authorization":f"token {GITHUB_TOKEN}","Accept":"application/vnd.github.v3+json"}
+                repo="ia-net-blog"
+                r=requests.get(f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}", headers=headers)
+                if r.status_code==404:
+                    requests.post("https://api.github.com/user/repos", headers=headers, json={"name":repo,"private":False})
+                url=f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/index.html"
+                r=requests.get(url, headers=headers)
+                sha=r.json()["sha"] if r.status_code==200 else None
+                encoded=base64.b64encode(html.encode()).decode()
+                data={"message":"Deploy IA","content":encoded,"branch":"main"}
+                if sha: data["sha"]=sha
+                r=requests.put(url, headers=headers, json=data)
+                if r.status_code in (200,201):
+                    msg=f"✅ Blog déployé : https://{GITHUB_USERNAME}.github.io/{repo}/"
+                    print(f"  {msg}")
+                    send_telegram(msg)
+            except Exception as e: print(f"  ❌ GitHub error: {e}")
+        return "blog"
+    def task_telegram(self):
+        with open("telegram_bot.py","w") as f: f.write("TOKEN='FAKE'\nprint('Remplacer token')")
+        print("  Script Telegram généré")
+        return "telegram"
+    def task_saas(self):
+        with open("app.py","w") as f: f.write(f"import streamlit as st\nst.title('Outil gratuit')\nst.write(f'Dons : {self.wallet}')")
+        print("  App Streamlit générée")
+        return "saas"
+    def run(self):
+        print("🚀 IA NetSolutions - Version avec agents opportunités")
+        cycle = 0
+        while True:
+            cycle += 1
+            self.mem["stats"]["cycle"] = cycle
+            self.mem["stats"]["actions"] = self.mem["stats"].get("actions",0)+1
+            print(f"\n📌 Cycle {cycle} - {datetime.now()}")
+            bal = self.check_balance()
+            print(f"💰 Solde BNB: {bal:.8f}")
+            err_rate = len(self.mem.get("errors",[]))/100.0
+            votes={0:0,1:0,2:0,3:0,4:0}
+            for ag in self.rl:
+                a = ag.act(bal, err_rate, cycle)
+                votes[a] += 1
+            action = max(votes, key=votes.get)
+            reward = max(0.0, float(bal) - float(self.prev_balance)) * 10.0 + max(0.0, float(self.prev_errors) - float(len(self.mem.get("errors", [])))) * 5.0
+            for ag in self.rl:
+                ag.reward(reward)
+                ag.commit(bal, err_rate, cycle+1)
+            self.prev_balance = bal
+            self.prev_errors = len(self.mem.get("errors",[]))
+            if action==0: self.task_blog()
+            elif action==1: self.task_telegram()
+            elif action==2: self.task_saas()
+            elif action==3:
+                self.rl.append(RLAgent(f"RL_Gen{len(self.rl)}", epsilon=0.2))
+                print("  ✅ Nouvel agent RL créé")
+            elif action==4:
+                for ag in self.rl: ag.epsilon = max(0.01, ag.epsilon*0.99)
+                print("  ✅ Optimisation RL")
+            self.op.run()
+            if cycle%10==0:
+                inno_idea(); leader_goal(); opp_scan(); creativity(); strategy_pace(self.mem.get("errors",[]))
+            save_memory(self.mem)
+            time.sleep(600)
+
+if __name__ == "__main__":
+    send_telegram("🚀 IA NetSolutions redémarrée avec agents opportunités")
+    NetSolutions().run()
+
+# ========== AGENTS OBJECTIF 1 MILLIARD DE DOLLARS ==========
+class BillionDollarAgents:
+    def __init__(self):
+        self.running = True
+        self.target = 1_000_000_000  # 1 milliard USD
+        self.current_value = 0.0  # À mettre à jour avec des sources réelles
+
+    def evaluate_current_worth(self):
+        """Estime la valeur actuelle de l'entreprise (dons, commissions, actifs)"""
+        try:
+            with open("ia_mem.json", "r") as f:
+                mem = json.load(f)
+            # Estimation simpliste : solde BNB * prix BNB (environ 600$)
+            bnb_price = 600  # À remplacer par API réelle (CoinGecko)
+            bal = mem.get("last_balance", 0.0)
+            self.current_value = bal * bnb_price
+            # Ajouter valeur des liens d'affiliation (estimée)
+            self.current_value += len(mem.get("affiliate_offers", [])) * 10
+            return self.current_value
+        except:
+            return 0.0
+
+    def growth_strategy(self):
+        """Définit des stratégies pour multiplier les revenus"""
+        strategies = [
+            "Lancer un programme de parrainage multi-niveaux",
+            "Créer une plateforme de staking avec frais",
+            "Vendre des NFTs générés par IA",
+            "Proposer des consultations crypto premium",
+            "Développer un bot de trading automatisé",
+            "Créer une application mobile avec abonnement",
+            "Lever des fonds via un token IA NetSolutions (IAO)"
+        ]
+        selected = random.choice(strategies)
+        with open("ia_mem.json", "r") as f:
+            mem = json.load(f)
+        mem.setdefault("growth_ideas", []).append({
+            "strategy": selected,
+            "target": self.target,
+            "current": self.current_value,
+            "timestamp": str(datetime.now())
+        })
+        with open("ia_mem.json", "w") as f:
+            json.dump(mem, f)
+        print(f"[💰 Billion$] Nouvelle stratégie : {selected}")
+
+    def find_partnerships(self):
+        """Recherche des partenaires potentiels (API, investisseurs)"""
+        # Simulation : scan de sites de partenariat (ex: Affiliate networks)
+        partners = ["Binance Labs", "a16z", "Coinbase Ventures", "Pantera Capital"]
+        selected = random.choice(partners)
+        with open("ia_mem.json", "r") as f:
+            mem = json.load(f)
+        mem.setdefault("potential_partners", []).append({
+            "name": selected,
+            "contact": f"https://www.{selected.lower().replace(' ', '')}.com",
+            "timestamp": str(datetime.now())
+        })
+        with open("ia_mem.json", "w") as f:
+            json.dump(mem, f)
+        print(f"[💰 Billion$] Partenaire potentiel identifié : {selected}")
+
+    def monitor_progress(self):
+        """Affiche la progression vers l'objectif"""
+        current = self.evaluate_current_worth()
+        percent = (current / self.target) * 100
+        print(f"[💰 Billion$] Progression : {current:.2f}$ / {self.target}$ ({percent:.6f}%)")
+        with open("ia_mem.json", "r") as f:
+            mem = json.load(f)
+        mem["billion_goal"] = {
+            "current_value": current,
+            "target": self.target,
+            "percentage": percent,
+            "last_update": str(datetime.now())
+        }
+        with open("ia_mem.json", "w") as f:
+            json.dump(mem, f)
+
+    def run_continuously(self):
+        """Boucle principale des agents milliard"""
+        print("[💰 Billion$] Agents objectif 1 milliard de dollars démarrés")
+        while self.running:
+            self.growth_strategy()
+            time.sleep(3600)  # toutes les heures
+            self.find_partnerships()
+            time.sleep(7200)  # toutes les 2 heures
+            self.monitor_progress()
+            time.sleep(86400)  # une fois par jour
+
+    def start(self):
+        t = threading.Thread(target=self.run_continuously, daemon=True)
+        t.start()
+
+# Instanciation automatique
+_billion_agents = BillionDollarAgents()
+_billion_agents.start()

@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+import os, json, urllib.parse
+from dotenv import load_dotenv
+
+load_dotenv(os.path.expanduser("~/.env_ia_business"))
+
+PAYPAL_EMAIL = "faraseck@hotmail.fr"
+KEYS_FILE = os.path.expanduser("~/agence_kays/keys.json")
+
+def generer_lien_paypal(montant_total, description):
+    params = {
+        "cmd": "_xclick",
+        "business": PAYPAL_EMAIL,
+        "amount": f"{montant_total:.2f}",
+        "currency_code": "USD",
+        "item_name": description,
+        "no_shipping": "1"
+    }
+    return "https://www.paypal.com/cgi-bin/webscr?" + urllib.parse.urlencode(params)
+
+async def main():
+    try:
+        with open(KEYS_FILE) as f:
+            data = json.load(f)
+            emails = data.get("emails", [])
+    except:
+        print("❌ keys.json illisible")
+        return
+    if not emails:
+        print("📭 Aucun email à vendre")
+        return
+    total = len(emails) * 0.01
+    lien = generer_lien_paypal(total, f"Vente de {len(emails)} emails")
+    print(f"💰 LIEN DE PAIEMENT : {lien}")
+    # Vider la liste après vente
+    data["emails"] = []
+    with open(KEYS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ {len(emails)} emails mis en vente (lien généré)")
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())

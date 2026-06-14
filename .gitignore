@@ -1,0 +1,28 @@
+# Secrets
+.env_ia_business
+.secrets/
+*.conf
+*.key
+*.pem
+
+# Logs
+*.log
+*.pid
+depannage.log
+
+# Bases de données
+*.db
+*.db-journal
+
+# Fichiers temporaires
+*.tmp
+backup_*/
+__pycache__/
+*.pyc
+
+# Fichiers spécifiques à l'IA
+ia_opp_mem.json
+ia_finance_mem.json
+ia_mem_pro.json
+cerebrum/memory/decisions.json
+ia_ceo_state/

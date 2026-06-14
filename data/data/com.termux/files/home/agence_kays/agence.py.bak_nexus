@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+import json, os, random, time
+from datetime import datetime
+
+KEYS_FILE = os.path.expanduser("~/agence_kays/keys.json")
+
+def log(msg):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+def add_email():
+    # Charger existant
+    data = {"emails": [], "github_tokens": []}
+    if os.path.exists(KEYS_FILE):
+        try:
+            with open(KEYS_FILE, 'r') as f:
+                data = json.load(f)
+        except:
+            pass
+    email = f"user{random.randint(100000, 999999)}@guerrillamailblock.com"
+    data.setdefault("emails", []).append(email)
+    with open(KEYS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+    log(f"📧 Créé {email} (total {len(data['emails'])})")
+
+if __name__ == "__main__":
+    log("Agence Kays démarrée")
+    while True:
+        add_email()
+        time.sleep(30)

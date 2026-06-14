@@ -1,0 +1,140 @@
+import asyncio
+import json
+import os
+import time
+import base64
+import aiohttp
+import tweepy
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ---------- Clés ----------
+TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
+TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
+TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
+TWITTER_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
+CAPTCHA_API_KEY = os.getenv("CAPTCHA_API_KEY")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+INFURA_PROJECT_ID = os.getenv("INFURA_PROJECT_ID")
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET = os.getenv("BINANCE_SECRET")
+
+# ---------- Twitter ----------
+async def post_tweet():
+    if not (TWITTER_API_KEY and TWITTER_API_SECRET and TWITTER_ACCESS_TOKEN and TWITTER_ACCESS_TOKEN_SECRET):
+        return 0.0
+    try:
+        auth = tweepy.OAuthHandler(TWITTER_API_KEY, TWITTER_API_SECRET)
+        auth.set_access_token(TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET)
+        api = tweepy.API(auth)
+        api.update_status("🚀 Découvrez cette offre crypto ! #affiliation")
+        return 0.02
+    except Exception as e:
+        print(f"Twitter error: {e}")
+        return 0.0
+
+# ---------- 2Captcha ----------
+async def solve_captcha():
+    if not CAPTCHA_API_KEY:
+        return 0.0
+    if not os.path.exists("captcha.png"):
+        print("📢 Aucun captcha → pas de gain")
+        return 0.0
+    with open("captcha.png", "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode()
+    async with aiohttp.ClientSession() as session:
+        create_payload = {
+            "clientKey": CAPTCHA_API_KEY,
+            "task": {"type": "ImageToTextTask", "body": img_b64, "phrase": False, "case": True, "numeric": 0, "math": False, "minLength": 1, "maxLength": 5},
+            "languagePool": "en"
+        }
+        async with session.post("https://api.2captcha.com/createTask", json=create_payload) as resp:
+            data = await resp.json()
+            if data.get("errorId"):
+                return 0.0
+            task_id = data.get("taskId")
+            if not task_id:
+                return 0.0
+        for _ in range(30):
+            await asyncio.sleep(2)
+            async with session.post("https://api.2captcha.com/getTaskResult", json={"clientKey": CAPTCHA_API_KEY, "taskId": task_id}) as res:
+                result = await res.json()
+                if result.get("status") == "ready":
+                    cost = float(result.get("cost", 0.00025))
+                    print(f"💰 Captcha résolu – gain réel: {cost} USD")
+                    return cost
+        return 0.0
+
+# ---------- DeepSeek ----------
+async def write_article():
+    if not DEEPSEEK_API_KEY:
+        return 0.0
+    async with aiohttp.ClientSession() as session:
+        headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
+        data = {"model": "deepseek-chat", "messages": [{"role": "user", "content": "Write a short crypto article."}], "max_tokens": 500}
+        try:
+            async with session.post("https://api.deepseek.com/v1/chat/completions", headers=headers, json=data) as resp:
+                if resp.status == 200:
+                    return 0.50
+                else:
+                    print(f"DeepSeek error {resp.status}")
+        except Exception as e:
+            print(f"DeepSeek exception: {e}")
+    return 0.0
+
+# ---------- GitHub ----------
+async def github_action():
+    if not GITHUB_TOKEN:
+        return 0.0
+    async with aiohttp.ClientSession() as session:
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        data = {"name": f"auto-article-{int(time.time())}", "auto_init": True, "private": False}
+        try:
+            async with session.post("https://api.github.com/user/repos", headers=headers, json=data) as resp:
+                if resp.status == 201:
+                    return 0.05
+                else:
+                    print(f"GitHub error {resp.status}")
+        except Exception as e:
+            print(f"GitHub exception: {e}")
+    return 0.0
+
+# ---------- Telegram ----------
+async def telegram_action():
+    if not TELEGRAM_BOT_TOKEN:
+        return 0.0
+    chat_id = "@ton_canal"   # Remplacez par l’ID de votre canal
+    text = "Nouvel article crypto !"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(url, json={"chat_id": chat_id, "text": text}) as resp:
+                if resp.status == 200:
+                    return 0.01
+                else:
+                    print(f"Telegram error {resp.status}")
+        except Exception as e:
+            print(f"Telegram exception: {e}")
+    return 0.0
+
+# ---------- Infura ----------
+async def infura_action():
+    if not INFURA_PROJECT_ID:
+        return 0.0
+    url = f"https://mainnet.infura.io/v3/{INFURA_PROJECT_ID}"
+    payload = {"jsonrpc": "2.0", "method": "eth_getBalance", "params": ["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbF", "latest"], "id": 1}
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(url, json=payload) as resp:
+                if resp.status == 200:
+                    return 0.002
+                else:
+                    print(f"Infura error {resp.status}")
+        except Exception as e:
+            print(f"Infura exception: {e}")
+    return 0.0
+
+# ---------- Binance ----------

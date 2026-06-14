@@ -1,0 +1,2 @@
+0 * * * * /data/data/com.termux/files/usr/bin/python /chemin/vers/mon_script.py0 * * * * python /data/data/com.termux/files/home/auto_exploit_discoveries.py
+

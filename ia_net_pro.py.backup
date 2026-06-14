@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+import os, time, json, random, secrets, base64, requests, hashlib, threading, shutil, glob
+from datetime import datetime
+from web3 import Web3
+from ecdsa import SigningKey, SECP256k1
+
+PRIVATE_KEY = "5a72dc7a6a3a2d56b6e1fbdb5f4e11393190da2303df376a78277a3de2197b80"
+OPENAI_API_KEY = "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"
+GITHUB_USERNAME = "francky07"
+GITHUB_TOKEN = "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"
+TELEGRAM_BOT_TOKEN = "6828632307:AAFf6yu_UyrVe4JyRrjaKNEbbKSFuT8cpZM"
+TELEGRAM_CHAT_ID = ""
+
+AFF_BINANCE = "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=fr&ref=GRO_28502_2P5Q3&utm_source=referral_entrance"
+AFF_ALIEXPRESS = "https://www.aliexpress.com/ssr/300003044/global-june-mega-sale-2026-27gyo9?disableNav=YES&pha_manifest=ssr&_immersiveMode=true&businessCode=guide&wh_pid=300003044/global-june-mega-sale-2026-27gyo9&wh_ttid=adc&adc_strategy=prerender&_wv_preload=true&adc_direct_ssr=true"
+AFF_LBK = "https://www.lbkpro.net/ref/1OB7H"
+AFF_PI = "https://minepi.com/francky070"
+
+w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed1.binance.org"))
+account = w3.eth.account.from_key(PRIVATE_KEY)
+WALLET = account.address
+print(f"✅ Wallet BSC: {WALLET}")
+
+MEM_FILE = "ia_mem_pro.json"
+mem_lock = threading.Lock()
+
+def load_memory():
+    if os.path.exists(MEM_FILE):
+        with mem_lock:
+            with open(MEM_FILE) as f:
+                return json.load(f)
+    return {"stats":{"cycle":0,"actions":0},"errors":[], "last_balance":0.0}
+def save_memory(d):
+    with mem_lock:
+        with open(MEM_FILE, "w") as f:
+            json.dump(d, f, indent=2)
+
+def send_telegram(message):
+    global TELEGRAM_CHAT_ID
+    if TELEGRAM_BOT_TOKEN:
+        if not TELEGRAM_CHAT_ID:
+            try:
+                r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates", timeout=15)
+                if r.status_code == 200 and r.json()["result"]:
+                    TELEGRAM_CHAT_ID = str(r.json()["result"][0]["message"]["chat"]["id"])
+            except: pass
+        if TELEGRAM_CHAT_ID:
+            for _ in range(3):
+                try:
+                    requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                                  json={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=15)
+                    break
+                except: time.sleep(2)
+
+class OpAgents:
+    def __init__(self,parent): self.parent=parent
+    def run(self):
+        agents=[("DG","Coordination"),("S1","Strat"),("S2","Strat"),("R1","Ress"),("R2","Ress")]+[(f"M{i}","Rech") for i in range(1,5)]+[(f"V{i}","Tech") for i in range(1,3)]+[(f"O{i}","Opp") for i in range(1,3)]+[(f"C{i}","Contenu") for i in range(1,6)]+[(f"D{i}","Dev") for i in range(1,5)]+[(f"B{i}","BDD") for i in range(1,3)]+[(f"MK{i}","Marketing") for i in range(1,5)]+[(f"SEO{i}","SEO") for i in range(1,4)]+[(f"SO{i}","Social") for i in range(1,3)]+[(f"DA{i}","Analyse") for i in range(1,3)]+[(f"RO{i}","Revenus") for i in range(1,3)]+[(f"Q{i}","Qualité") for i in range(1,3)]+[(f"SU{i}","Support") for i in range(1,3)]+[("Doc","Admin")]+[(f"CY{i}","Sécu") for i in range(1,3)]+[(f"AU{i}","Audit") for i in range(1,3)]
+        for name,role in agents:
+            self.parent.log_action(name,role,"OK")
+        return True
+class RLAgent:
+    def __init__(self, name, alpha=0.1, gamma=0.9, epsilon=0.2):
+        self.name=name; self.alpha=alpha; self.gamma=gamma; self.epsilon=epsilon
+        self.q={}; self.last_state=None; self.last_action=None; self.last_reward=0
+    def _state(self, balance, err_rate, cycle):
+        b=int(balance*100) if balance<1 else min(5,int(balance))
+        e=0 if err_rate<0.05 else (1 if err_rate<0.2 else 2)
+        c=cycle%10
+        return (b,e,c)
+    def act(self, balance, err_rate, cycle):
+        s=self._state(balance,err_rate,cycle)
+        if random.random()<self.epsilon:
+            a=random.randint(0,4)
+        else:
+            qv=[self.q.get((s,a),0.0) for a in range(5)]
+            a=max(range(5), key=lambda x: qv[x])
+        self.last_state=s; self.last_action=a
+        return a
+    def reward(self,r): self.last_reward=r
+    def commit(self, balance, err_rate, cycle):
+        if self.last_state is not None:
+            ns=self._state(balance,err_rate,cycle)
+            old=self.q.get((self.last_state,self.last_action),0.0)
+            nxt_max=max([self.q.get((ns,a),0.0) for a in range(5)], default=0.0)
+            new=old+self.alpha*(self.last_reward+self.gamma*nxt_max-old)
+            self.q[(self.last_state,self.last_action)]=new
+            self.last_state=None; self.last_action=None; self.last_reward=0
+rl_agents = [RLAgent(f"RL_{i}", epsilon=0.2+0.03*i) for i in range(10)]
+
+def inno_idea(): print(f"💡 Innovation: {random.sample(['NFT','Bot Discord','Jeu'],2)}")
+def leader_goal(): print(f"🎯 Objectif: {random.choice(['Augmenter fichiers','Réduire erreurs'])}")
+def opp_scan(): print(f"🔍 Opportunité: {random.choice(['Tendance IA','Prix BNB bas'])}")
+def creativity(): print(f"🎨 Concept: {random.sample(['blog','bot','app'],2)}")
+def strategy_pace(errors): print(f"⚙️ Stratégie: {'Expansion' if len(errors)<5 else 'Consolidation'}")
+
+class EconomicAgent(threading.Thread):
+    def __init__(self, name, interval=60):
+        super().__init__(daemon=True); self.name=name; self.interval=interval; self.last_run=0
+    def run(self):
+        while True:
+            now=time.time()
+            if now-self.last_run>=self.interval:
+                self.last_run=now
+                try: self.execute()
+                except: pass
+            time.sleep(30)
+    def execute(self): pass
+    def log(self,msg): print(f"[💰 {self.name}] {msg}")
+
+class WalletMonitor(EconomicAgent):
+    def execute(self):
+        try:
+            bal = float(w3.from_wei(w3.eth.get_balance(WALLET),'ether'))
+            mem = load_memory()
+            last = mem.get("last_balance",0.0)
+            if bal > last + 0.0001:
+                self.log(f"🎉 Don reçu ! +{bal-last:.6f} BNB")
+                send_telegram(f"🎉 Don reçu ! +{bal-last:.6f} BNB")
+            mem["last_balance"]=bal
+            save_memory(mem)
+        except: pass
+class CostOptimizer(EconomicAgent):
+    def execute(self):
+        try:
+            gas = w3.from_wei(w3.eth.gas_price, 'gwei')
+            mem = load_memory(); mem["gas_price"]=float(gas); save_memory(mem)
+            self.log(f"Gaz: {gas:.2f} Gwei")
+        except: pass
+class MonetizationAgent(EconomicAgent):
+    def execute(self):
+        mem = load_memory()
+        mem.setdefault("monetization_ideas",[]).append(random.choice(["Buy me a coffee","Service premium","Liens affiliation"]))
+        save_memory(mem)
+class InvestmentAgent(EconomicAgent):
+    def execute(self):
+        bal = load_memory().get("last_balance",0)
+        if bal >= 0.01: self.log(f"💹 Solde suffisant ({bal:.4f} BNB) – staking recommandé")
+class ROIAgent(EconomicAgent):
+    def execute(self):
+        mem = load_memory()
+        roi = sum(d["amount"] for d in mem.get("donations",[])) - mem.get("total_costs",0.0)
+        self.log(f"ROI: {roi:.6f} BNB")
+        mem["roi"]=roi; save_memory(mem)
+
+for agent in [WalletMonitor("WalletMonitor",120), CostOptimizer("CostOptimizer",300), MonetizationAgent("Monetization",600), InvestmentAgent("Investment",900), ROIAgent("ROI",1800)]:
+    agent.start()
+
+def auto_backup():
+    while True:
+        try:
+            backup_dir=f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            os.makedirs(backup_dir, exist_ok=True)
+            for f in ["ia_net_pro.py","ia_booster_pro.py","ia_booster_pro_250.py","ia_mem_pro.json","index.html","telegram_bot.py","app.py"]:
+                if os.path.exists(f): shutil.copy2(f, backup_dir)
+            for old in glob.glob("backup_*"):
+                if os.path.isdir(old) and time.time()-os.path.getmtime(old)>7*86400:
+                    shutil.rmtree(old)
+            print("💾 Sauvegarde effectuée")
+        except: pass
+        time.sleep(3600)
+threading.Thread(target=auto_backup, daemon=True).start()
+class NetSolutionsPro:
+    def __init__(self):
+        self.wallet = WALLET
+        self.mem = load_memory()
+        self.op = OpAgents(self)
+        self.rl = rl_agents
+        self.prev_balance = 0.0
+        self.prev_errors = 0
+    def log_action(self,n,r,s): print(f"  [{n}] {r}: {s}")
+    def check_balance(self):
+        try: return float(w3.from_wei(w3.eth.get_balance(self.wallet),'ether'))
+        except: return 0.0
+    def task_blog(self):
+        article = "<p>Découvrez nos partenaires : Binance, AliExpress, LBK Pro et Pi Network.</p>"
+        if OPENAI_API_KEY and OPENAI_API_KEY.startswith("sk-"):
+            try:
+                h={"Authorization":f"Bearer {OPENAI_API_KEY}","Content-Type":"application/json"}
+                d={"model":"gpt-3.5-turbo","messages":[{"role":"user","content":f"Rédige un court article SEO sur crypto et IA, avec appel aux dons sur {self.wallet} et nos liens partenaires."}]}
+                r=requests.post("https://api.openai.com/v1/chat/completions", headers=h, json=d, timeout=15)
+                if r.status_code==200: article=r.json()["choices"][0]["message"]["content"]
+            except: pass
+        html = f"""<html><body><h1>Blog IA NetSolutions Pro</h1>{article}<hr><p>Dons : {self.wallet}</p><p><a href="{AFF_BINANCE}" target="_blank">Binance - Gagnez des USDC</a></p><p><a href="{AFF_ALIEXPRESS}" target="_blank">AliExpress - Promos exclusives</a></p><p><a href="{AFF_LBK}" target="_blank">LBK Pro - Parrainage crypto</a></p><p><a href="{AFF_PI}" target="_blank">Pi Network (code: francky070)</a></p></body></html>"""
+        with open("index.html","w") as f: f.write(html)
+        print("  Blog généré (index.html)")
+        if GITHUB_TOKEN and GITHUB_USERNAME:
+            try:
+                headers={"Authorization":f"token {GITHUB_TOKEN}","Accept":"application/vnd.github.v3+json"}
+                repo="ia-net-blog-pro"
+                r=requests.get(f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}", headers=headers)
+                if r.status_code==404:
+                    requests.post("https://api.github.com/user/repos", headers=headers, json={"name":repo,"private":False})
+                url=f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/index.html"
+                r=requests.get(url, headers=headers)
+                sha=r.json()["sha"] if r.status_code==200 else None
+                encoded=base64.b64encode(html.encode()).decode()
+                data={"message":"Deploy IA Pro","content":encoded,"branch":"main"}
+                if sha: data["sha"]=sha
+                r=requests.put(url, headers=headers, json=data)
+                if r.status_code in (200,201):
+                    msg=f"✅ Blog déployé : https://{GITHUB_USERNAME}.github.io/{repo}/"
+                    print(f"  {msg}")
+                    send_telegram(msg)
+            except Exception as e: print(f"  ❌ GitHub error: {e}")
+        return "blog"
+    def task_telegram(self):
+        with open("telegram_bot.py","w") as f: f.write("TOKEN='FAKE'\nprint('Remplacer token')")
+        print("  Script Telegram généré")
+        return "telegram"
+    def task_saas(self):
+        with open("app.py","w") as f: f.write(f"import streamlit as st\nst.title('Outil gratuit')\nst.write(f'Dons : {self.wallet}')")
+        print("  App Streamlit générée")
+        return "saas"
+    def run(self):
+        print("🚀 IA NetSolutions PRO - 700 agents - Cycle 3 min")
+        cycle = 0
+        while True:
+            try:
+                cycle += 1
+                self.mem["stats"]["cycle"] = cycle
+                self.mem["stats"]["actions"] = self.mem["stats"].get("actions",0) + 1
+                print(f"\n📌 Cycle {cycle} - {datetime.now()}")
+                bal = self.check_balance()
+                print(f"💰 Solde BNB: {bal:.8f}")
+                err_rate = len(self.mem.get("errors",[])) / 100.0
+                votes = {0:0,1:0,2:0,3:0,4:0}
+                for ag in self.rl:
+                    a = ag.act(bal, err_rate, cycle)
+                    votes[a] += 1
+                action = max(votes, key=votes.get)
+                reward = max(0.0, float(bal)-float(self.prev_balance))*10.0 + max(0.0, float(self.prev_errors)-float(len(self.mem.get("errors",[]))))*5.0
+                for ag in self.rl:
+                    ag.reward(reward)
+                    ag.commit(bal, err_rate, cycle+1)
+                self.prev_balance = bal
+                self.prev_errors = len(self.mem.get("errors",[]))
+                if action == 0: self.task_blog()
+                elif action == 1: self.task_telegram()
+                elif action == 2: self.task_saas()
+                elif action == 3:
+                    self.rl.append(RLAgent(f"RL_Gen{len(self.rl)}", epsilon=0.2))
+                    print("  ✅ Nouvel agent RL créé")
+                elif action == 4:
+                    for ag in self.rl: ag.epsilon = max(0.01, ag.epsilon*0.99)
+                    print("  ✅ Optimisation RL")
+                self.op.run()
+                if cycle % 10 == 0:
+                    inno_idea(); leader_goal(); opp_scan(); creativity(); strategy_pace(self.mem.get("errors",[]))
+                save_memory(self.mem)
+                time.sleep(60)
+            except Exception as e:
+                print(f"❌ Erreur cycle {cycle}: {e}")
+                self.mem.setdefault("errors",[]).append(str(e))
+                save_memory(self.mem)
+                time.sleep(60)
+
+if __name__ == "__main__":
+    send_telegram("🚀 IA NetSolutions PRO (700 agents) démarrée")
+    NetSolutionsPro().run()

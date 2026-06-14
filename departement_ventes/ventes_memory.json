@@ -1,0 +1,9 @@
+{
+  "cycle": 0,
+  "total_earned": 131.04,
+  "actions_scores": {
+    "sell_emails": 1.475536317500503e-20,
+    "sell_articles": 3.810782293960414e-58,
+    "sell_github_tokens": 5.7197797860825035e-59
+  }
+}

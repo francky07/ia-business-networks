@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+import os, time, json, threading, requests
+from datetime import datetime
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+data_lock = threading.Lock()
+shared_data = {"bots": {}, "global_state": {"last_cycle":0, "last_action":"", "bnb_balance":0.0}, "commands": []}
+
+PING_TIMEOUT = 60
+CLEANUP_INTERVAL = 30
+COMMAND_TIMEOUT = 300
+
+def log(msg): print(f"[HUB {datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+def cleanup_dead_bots():
+    now = time.time()
+    with data_lock:
+        dead = [bid for bid,info in shared_data["bots"].items() if now - info.get("last_ping",0) > PING_TIMEOUT]
+        for bid in dead:
+            del shared_data["bots"][bid]
+            log(f"🧹 Bot {bid} supprimé (timeout)")
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    data = request.json
+    bot_id = data.get('bot_id')
+    if not bot_id: return jsonify({"error": "bot_id required"}), 400
+    with data_lock:
+        shared_data["bots"][bot_id] = {"last_ping": time.time(), "status": "active", "registered_at": datetime.now().isoformat(), "info": data.get("info", {})}
+    log(f"📡 Bot {bot_id} enregistré")
+    return jsonify({"status": "ok"})
+
+@app.route('/api/ping', methods=['POST'])
+def ping():
+    data = request.json
+    bot_id = data.get('bot_id')
+    if not bot_id: return jsonify({"error": "bot_id required"}), 400
+    state = data.get('state', {})
+    with data_lock:
+        if bot_id not in shared_data["bots"]:
+            shared_data["bots"][bot_id] = {"registered_at": datetime.now().isoformat()}
+        shared_data["bots"][bot_id]["last_ping"] = time.time()
+        shared_data["bots"][bot_id]["status"] = "active"
+        shared_data["bots"][bot_id]["state"] = state
+        if "cycle" in state: shared_data["global_state"]["last_cycle"] = state["cycle"]
+        if "balance" in state: shared_data["global_state"]["bnb_balance"] = state["balance"]
+    return jsonify({"status": "pong"})
+
+@app.route('/api/get_state', methods=['GET'])
+def get_state():
+    with data_lock:
+        state = {
+            "bots": {bid: {"status": info.get("status"), "last_ping": info.get("last_ping"), "state": info.get("state",{})}
+                     for bid,info in shared_data["bots"].items()},
+            "global": shared_data["global_state"].copy()
+        }
+    return jsonify(state)
+
+@app.route('/api/command', methods=['POST'])
+def command():
+    data = request.json
+    target = data.get('target')
+    action = data.get('action')
+    if not target or not action: return jsonify({"error": "target and action required"}), 400
+    cmd = {"id": str(int(time.time()*1000)), "target": target, "action": action, "params": data.get("params",{}), "created_at": time.time(), "status": "pending"}
+    with data_lock:
+        shared_data["commands"].append(cmd)
+    log(f"📢 Commande {action} pour {target} ajoutée")
+    return jsonify({"command_id": cmd["id"]})
+
+@app.route('/api/get_commands', methods=['GET'])
+def get_commands():
+    bot_id = request.args.get('bot_id')
+    if not bot_id: return jsonify({"error": "bot_id required"}), 400
+    with data_lock:
+        my_cmds = []
+        remaining = []
+        for cmd in shared_data["commands"]:
+            if cmd["status"] == "pending" and (cmd["target"] == bot_id or cmd["target"] == "all"):
+                my_cmds.append(cmd)
+                cmd["status"] = "taken"
+            else:
+                remaining.append(cmd)
+        shared_data["commands"] = remaining
+    return jsonify({"commands": my_cmds})
+
+def cleanup_loop():
+    while True:
+        time.sleep(CLEANUP_INTERVAL)
+        cleanup_dead_bots()
+        with data_lock:
+            now = time.time()
+            shared_data["commands"] = [c for c in shared_data["commands"] if now - c["created_at"] < COMMAND_TIMEOUT]
+
+if __name__ == "__main__":
+    threading.Thread(target=cleanup_loop, daemon=True).start()
+    log("🚀 Hub avancé démarré sur http://localhost:5003")
+    app.run(host="0.0.0.0", port=5003, debug=False, threaded=True)

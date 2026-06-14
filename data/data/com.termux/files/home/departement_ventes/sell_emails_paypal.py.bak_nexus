@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+import os, json, urllib.parse, smtplib, ssl, subprocess, requests
+from email.mime.text import MIMEText
+from datetime import datetime
+
+# === CONFIGURATION (à personnaliser) ===
+PAYPAL_EMAIL = "faraseck@hotmail.fr"
+DEST_EMAIL = "faraseck@hotmail.fr"      # email qui reçoit les alertes
+
+# SMTP Brevo
+SMTP_SERVER = "smtp-relay.brevo.com"
+SMTP_PORT = 587
+SMTP_USER = "seckndananeuh@gmail.com"
+SMTP_PASSWORD = "xsmtpsib-9364b75a7aa91f2040c5ccc04b90c01224b070f1efc4b97d5c21a896ec6e8527-BheO7lIdmm52XdF4"
+
+# Telegram (remplacer par vos vraies valeurs)
+TELEGRAM_BOT_TOKEN = "VOTRE_TOKEN"
+TELEGRAM_CHAT_ID = "VOTRE_CHAT_ID"
+
+# GitHub Pages
+REPO_PATH = os.path.expanduser("~/ia-net-blog-pro")
+PAGE_FILE = os.path.join(REPO_PATH, "index.html")
+# ======================================
+
+KEYS_FILE = os.path.expanduser("~/agence_kays/keys.json")
+
+def generer_lien_paypal(montant, description):
+    params = {
+        "cmd": "_xclick",
+        "business": PAYPAL_EMAIL,
+        "amount": f"{montant:.2f}",
+        "currency_code": "USD",
+        "item_name": description,
+        "no_shipping": "1"
+    }
+    return "https://www.paypal.com/cgi-bin/webscr?" + urllib.parse.urlencode(params)
+
+def envoyer_email(dest, sujet, corps_html):
+    msg = MIMEText(corps_html, 'html')
+    msg['Subject'] = sujet
+    msg['From'] = SMTP_USER
+    msg['To'] = dest
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as s:
+            s.starttls(context=ctx)
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"[{datetime.now()}] Erreur email: {e}")
+        return False
+
+def envoyer_telegram(message):
+    if TELEGRAM_BOT_TOKEN == "VOTRE_TOKEN" or TELEGRAM_CHAT_ID == "VOTRE_CHAT_ID":
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=5)
+    except: pass
+
+def update_github_page(lien, nb_emails, montant):
+    if not os.path.exists(REPO_PATH):
+        return
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Offre emails IA Business</title></head>
+<body>
+<h1>Liste d'emails qualifiés</h1>
+<p>{nb_emails} emails disponibles – Prix {montant:.2f} USD</p>
+<p><a href="{lien}">Acheter maintenant</a></p>
+<p>Mise à jour automatique : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+</body>
+</html>"""
+    with open(PAGE_FILE, "w") as f:
+        f.write(html)
+    subprocess.run(["git", "-C", REPO_PATH, "add", "index.html"], capture_output=True)
+    subprocess.run(["git", "-C", REPO_PATH, "commit", "-m", "Auto-update offer"], capture_output=True)
+    subprocess.run(["git", "-C", REPO_PATH, "push", "origin", "main"], capture_output=True)
+
+async def main():
+    try:
+        with open(KEYS_FILE) as f:
+            data = json.load(f)
+            emails = data.get("emails", [])
+    except:
+        print("❌ keys.json illisible")
+        return
+    if not emails:
+        print("📭 Aucun email à vendre")
+        return
+    total = len(emails) * 0.01
+    lien = generer_lien_paypal(total, f"Vente de {len(emails)} emails")
+    print(f"💰 LIEN DE PAIEMENT : {lien}")
+
+    # Email
+    sujet = f"Nouvelle vente – {len(emails)} emails – {total} USD"
+    corps = f"<h2>Vente automatique</h2><p>{len(emails)} emails – {total} USD</p><p><a href='{lien}'>Payer</a></p>"
+    envoyer_email(DEST_EMAIL, sujet, corps)
+
+    # Telegram
+    msg_telegram = f"💰 Vente de {len(emails)} emails\nMontant: {total} USD\nLien: {lien}"
+    envoyer_telegram(msg_telegram)
+
+    # GitHub Pages
+    update_github_page(lien, len(emails), total)
+
+    # Vider la liste
+    data["emails"] = []
+    with open(KEYS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ {len(emails)} emails vendus – lien partagé sur email, Telegram et GitHub Pages")
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())

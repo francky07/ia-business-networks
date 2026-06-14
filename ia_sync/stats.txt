@@ -1,0 +1,24 @@
+======= STATS GLOBALES =======
+Date: Wed Jun 10 13:51:39 GMT 2026
+
+📌 Nouveau modèle (ia_reelle) :
+   Cycle : 2
+   Gains totaux USD : 0.0
+📌 Finance (500 agents) :
+   Revenu généré : 4.914663542510017 USD
+📌 Bot principal (ia_net) :
+   Cycle : 54
+   Actions : 437
+
+🖥️ Sessions tmux actives :
+   booster: 1 windows (created Wed Jun 10 12:46:54 2026)
+   booster_pro: 1 windows (created Wed Jun 10 12:46:54 2026)
+   hub: 1 windows (created Wed Jun 10 12:46:54 2026)
+   hub_client: 1 windows (created Wed Jun 10 12:46:54 2026)
+   ia_net: 1 windows (created Wed Jun 10 12:46:54 2026)
+   ia_reelle: 1 windows (created Wed Jun 10 12:46:54 2026)
+   ia_sync: 1 windows (created Wed Jun 10 12:46:54 2026)
+   oeil_de_dieu: 1 windows (created Wed Jun 10 13:50:54 2026) (attached)
+   opp_auto: 1 windows (created Wed Jun 10 12:46:54 2026)
+
+⚠️ Dernières erreurs :

@@ -1,0 +1,10 @@
+{
+  "cycle": 2783,
+  "total_earned": 14.449999999999736,
+  "actions_scores": {
+    "github_token": 2.0988591424406303e-90,
+    "solve_captcha": 1.2393553350197679e-90,
+    "create_email": 3.099321282189031e-31,
+    "generate_article_sambanova": 1.4199822505575707e-88
+  }
+}

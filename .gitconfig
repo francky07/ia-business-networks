@@ -1,0 +1,6 @@
+[user]
+	name = francky07
+	email = francky07@users.noreply.github.com
+	signingkey = 19747591CF86EA73
+[commit]
+	gpgsign = true

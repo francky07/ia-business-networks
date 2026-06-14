@@ -1,0 +1,10 @@
+import asyncio, aiohttp, json, os, time
+from datetime import datetime
+LOG_FILE="oeil_de_dieu.log"
+def log(msg): ts=datetime.now().strftime("%Y-%m-%d %H:%M:%S"); line=f"[{ts}] {msg}"; print(line); open(LOG_FILE,"a").write(line+"\n")
+async def main():
+    log("👁️ ŒIL DE DIEU – SURVEILLANCE")
+    while True:
+        log("Cycle – en veille")
+        await asyncio.sleep(60)
+asyncio.run(main())

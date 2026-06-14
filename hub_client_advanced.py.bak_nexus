@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+import os, time, json, requests, threading
+from datetime import datetime
+from web3 import Web3
+
+HUB_URL = "http://localhost:5003"
+BOT_ID = "ia_net"
+
+def load_memory():
+    try:
+        with open("ia_mem_pro.json") as f:
+            return json.load(f)
+    except: return {}
+
+def get_state():
+    mem = load_memory()
+    state = {
+        "cycle": mem.get("stats", {}).get("cycle", 0),
+        "actions": mem.get("stats", {}).get("actions", 0),
+        "balance": 0.0,
+        "timestamp": time.time()
+    }
+    try:
+        w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed1.binance.org"))
+        state["balance"] = w3.from_wei(w3.eth.get_balance("0xba23A87e6f67a1becC59AAEd4c2DDa8C216F9363"), 'ether')
+    except: pass
+    return state
+
+def ping_loop():
+    try:
+        requests.post(f"{HUB_URL}/api/register", json={"bot_id": BOT_ID, "info": {"type": "main"}}, timeout=2)
+    except: pass
+    while True:
+        try:
+            state = get_state()
+            requests.post(f"{HUB_URL}/api/ping", json={"bot_id": BOT_ID, "state": state}, timeout=2)
+        except: pass
+        time.sleep(30)
+
+def command_listener():
+    while True:
+        try:
+            r = requests.get(f"{HUB_URL}/api/get_commands?bot_id={BOT_ID}", timeout=2)
+            if r.status_code == 200:
+                cmds = r.json().get("commands", [])
+                for cmd in cmds:
+                    if cmd["action"] == "restart":
+                        print("🔁 Commande de redémarrage reçue")
+                        os.system("tmux kill-session -t ia_net && tmux new-session -d -s ia_net 'python ia_net_pro.py'")
+                    elif cmd["action"] == "backup":
+                        print("💾 Sauvegarde forcée")
+            time.sleep(15)
+        except: pass
+
+threading.Thread(target=ping_loop, daemon=True).start()
+threading.Thread(target=command_listener, daemon=True).start()
+print("✅ Client hub avancé démarré")
+while True: time.sleep(30)

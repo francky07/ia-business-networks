@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""
+CEO Suprême – Supervision des portefeuilles réels (BNB + PayPal)
+"""
+import sqlite3
+import subprocess
+import time
+import os
+import json
+import requests
+import glob
+import imaplib
+import email
+import re
+from datetime import datetime
+from web3 import Web3
+
+DB_PATH = os.path.expanduser("~/ia_shared/db/nexus.db")
+ENV_FILE = os.path.expanduser("~/.env_ia_business")
+SECRETS_DIR = os.path.expanduser("~/.secrets")
+STATE_DIR = os.path.expanduser("~/ia_ceo_state")
+os.makedirs(STATE_DIR, exist_ok=True)
+
+LOG_FILE = os.path.join(STATE_DIR, "ceo_supreme.log")
+
+def log(msg, level="INFO"):
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{ts}] [{level}] {msg}"
+    print(line)
+    with open(LOG_FILE, "a") as f:
+        f.write(line + "\n")
+
+class RealPortfolio:
+    def __init__(self):
+        self.bnb_balance = 0.0
+        self.paypal_balance = 0.0
+        self.total_received = 0.0
+
+    def update(self):
+        log("Mise à jour des portefeuilles réels...")
+        self.get_bnb_balance()
+        self.get_paypal_balance()
+        self.total_received = float(self.bnb_balance) + self.paypal_balance
+        log(f"Portefeuille réel: BNB={float(self.bnb_balance):.6f}, PayPal={self.paypal_balance:.2f} USD, Total={self.total_received:.2f} USD")
+
+    def get_bnb_balance(self):
+        address = "0xba23A87e6f67a1becC59AAEd4c2DDa8C216F9363"
+        try:
+            w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed1.binance.org"))
+            balance_wei = w3.eth.get_balance(address)
+            self.bnb_balance = w3.from_wei(balance_wei, 'ether')
+        except Exception as e:
+            log(f"Erreur BNB: {e}")
+            self.bnb_balance = 0.0
+
+    def get_paypal_balance(self):
+        email_user = self.get_env("PAYPAL_EMAIL", "seckndananeuh@gmail.com")
+        email_pass = self.get_env("PAYPAL_IMAP_PASSWORD")
+        if not email_pass:
+            log("Aucun mot de passe IMAP PayPal configuré")
+            return
+        try:
+            mail = imaplib.IMAP4_SSL("imap.gmail.com")
+            mail.login(email_user, email_pass)
+            mail.select("inbox")
+            result, uids = mail.uid('search', None, '(UNSEEN FROM "paypal@mail.com")')
+            total = 0.0
+            for uid in uids[0].split():
+                result, data = mail.uid('fetch', uid, '(RFC822)')
+                raw_email = data[0][1]
+                msg = email.message_from_bytes(raw_email)
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_type() == "text/plain":
+                            body = part.get_payload(decode=True).decode()
+                            break
+                else:
+                    body = msg.get_payload(decode=True).decode()
+                match = re.search(r'([\d,\.]+)\s*(?:USD|EUR|GBP)', body)
+                if match:
+                    montant = float(match.group(1).replace(',', '.'))
+                    total += montant
+                mail.uid('store', uid, '+FLAGS', '\\Seen')
+            self.paypal_balance = total
+            mail.close()
+            mail.logout()
+            if total > 0:
+                log(f"Paiements PayPal détectés: {total:.2f} USD")
+        except Exception as e:
+            log(f"Erreur IMAP PayPal: {e}")
+
+    def get_env(self, key, default=None):
+        if os.path.exists(ENV_FILE):
+            with open(ENV_FILE) as f:
+                for line in f:
+                    if line.startswith("export "): line = line[7:]
+                    if "=" in line and line.split("=")[0].strip() == key:
+                        return line.split("=",1)[1].strip().strip("\"'")
+        return default
+
+class Vision:
+    def __init__(self):
+        self.load()
+    def load(self):
+        f = os.path.join(STATE_DIR, "vision.json")
+        if os.path.exists(f):
+            with open(f) as fp:
+                data = json.load(fp)
+                self.mission = data.get("mission", "Devenir le leader de l'automatisation IA.")
+                self.values = data.get("values", ["Innovation", "Autonomie", "Rentabilité"])
+        else:
+            self.mission = "Devenir le leader de l'automatisation IA."
+            self.values = ["Innovation", "Autonomie", "Rentabilité"]
+            self.save()
+    def save(self):
+        with open(os.path.join(STATE_DIR, "vision.json"), "w") as f:
+            json.dump({"mission": self.mission, "values": self.values}, f, indent=2)
+    def report(self):
+        return f"Mission: {self.mission}\nValeurs: {', '.join(self.values)}"
+
+class Objectives:
+    def __init__(self):
+        self.load()
+    def load(self):
+        f = os.path.join(STATE_DIR, "objectives.json")
+        if os.path.exists(f):
+            with open(f) as fp:
+                self.data = json.load(fp)
+        else:
+            self.data = {"short_term": {"revenue_target": 10.0}, "medium_term": {"revenue_target": 100.0}, "long_term": {"revenue_target": 1000.0}}
+            self.save()
+    def save(self):
+        with open(os.path.join(STATE_DIR, "objectives.json"), "w") as f:
+            json.dump(self.data, f, indent=2)
+    def update(self, real_revenue):
+        if real_revenue > self.data["short_term"]["revenue_target"] * 0.8:
+            self.data["short_term"]["revenue_target"] *= 1.1
+            log(f"Objectif court terme augmenté à {self.data['short_term']['revenue_target']:.2f} USD")
+        elif real_revenue < self.data["short_term"]["revenue_target"] * 0.3:
+            self.data["short_term"]["revenue_target"] *= 0.9
+            log(f"Objectif court terme réduit à {self.data['short_term']['revenue_target']:.2f} USD")
+        self.save()
+    def report(self):
+        return f"Objectif court terme: {self.data['short_term']['revenue_target']:.2f} USD"
+
+class HR:
+    def __init__(self):
+        self.load()
+    def load(self):
+        f = os.path.join(STATE_DIR, "hr.json")
+        if os.path.exists(f):
+            with open(f) as fp:
+                self.data = json.load(fp)
+        else:
+            self.data = {"agents": {}}
+            self.save()
+    def save(self):
+        with open(os.path.join(STATE_DIR, "hr.json"), "w") as f:
+            json.dump(self.data, f, indent=2)
+    def evaluate_agents(self):
+        out = subprocess.run(["tmux", "ls"], capture_output=True, text=True).stdout
+        active = [line.split(":")[0] for line in out.splitlines() if line]
+        for a in active:
+            if a not in self.data["agents"]:
+                self.data["agents"][a] = {"productivity": 0.5, "last_seen": time.time()}
+            else:
+                self.data["agents"][a]["last_seen"] = time.time()
+        now = time.time()
+        to_remove = [a for a, info in self.data["agents"].items() if now - info["last_seen"] > 3600]
+        for a in to_remove:
+            del self.data["agents"][a]
+        self.save()
+        return len(active)
+    def recruit(self):
+        log("Recrutement d'un nouveau booster")
+        subprocess.run(["tmux", "new-session", "-d", "-s", f"recruit_{int(time.time())}", "python ~/ia_booster_agence.py"], shell=True)
+    def report(self):
+        nb = len(self.data["agents"])
+        return f"Agents actifs: {nb}"
+
+class Finance:
+    def __init__(self, portfolio):
+        self.portfolio = portfolio
+        self.cash = 0.0
+    def update(self):
+        self.cash = self.portfolio.total_received
+    def can_invest(self, amount):
+        return self.cash >= amount
+    def invest(self, amount, project):
+        if self.can_invest(amount):
+            self.cash -= amount
+            log(f"Investissement de {amount} USD dans {project}")
+            return True
+        else:
+            log(f"Investissement refusé (fonds: {self.cash:.2f} USD)")
+            return False
+    def report(self):
+        return f"Trésorerie réelle: {self.cash:.2f} USD"
+
+class KeySync:
+    def __init__(self):
+        self.keys = {}
+        self.load()
+    def load(self):
+        if os.path.exists(ENV_FILE):
+            with open(ENV_FILE) as f:
+                for line in f:
+                    if line.startswith("export "): line = line[7:]
+                    if "=" in line:
+                        k, v = line.strip().split("=", 1)
+                        self.keys[k] = v.strip("\"'")
+        for conf in glob.glob(os.path.join(SECRETS_DIR, "*.conf")):
+            with open(conf) as f:
+                for line in f:
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.strip().split("=", 1)
+                        self.keys[k] = v.strip("\"'")
+        with open(os.path.join(STATE_DIR, "all_keys.json"), "w") as f:
+            json.dump(self.keys, f, indent=2)
+        log(f"{len(self.keys)} clés synchronisées")
+    def get(self, key, default=None):
+        return self.keys.get(key, default)
+    def report(self):
+        return f"{len(self.keys)} clés disponibles"
+
+def get_db_stats():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM emails WHERE vendu=0")
+        stock = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM leads")
+        leads = c.fetchone()[0]
+        conn.close()
+        out = subprocess.run(["tmux", "ls"], capture_output=True, text=True).stdout
+        bots = len([l for l in out.splitlines() if l])
+        return {"stock": stock, "leads": leads, "bots": bots}
+    except:
+        return {"stock": 0, "leads": 0, "bots": 0}
+
+class StrategicDecider:
+    def __init__(self, vision, objectives, hr, finance, keysync, portfolio):
+        self.vision = vision
+        self.objectives = objectives
+        self.hr = hr
+        self.finance = finance
+        self.keysync = keysync
+        self.portfolio = portfolio
+        self.state = self.load_state()
+
+    def load_state(self):
+        f = os.path.join(STATE_DIR, "strategic_state.json")
+        if os.path.exists(f):
+            with open(f) as fp:
+                return json.load(fp)
+        return {"strategy": "balanced", "risk_level": 0.5, "consecutive_failures": 0}
+
+    def save_state(self):
+        with open(os.path.join(STATE_DIR, "strategic_state.json"), "w") as f:
+            json.dump(self.state, f, indent=2)
+
+    def make_decisions(self, stats):
+        self.portfolio.update()
+        real_revenue = self.portfolio.total_received
+        log(f"=== RÉUNION STRATÉGIQUE ===")
+        log(f"Argent réel total: {real_revenue:.2f} USD | Stock emails: {stats['stock']} | Leads: {stats['leads']}")
+        self.objectives.update(real_revenue)
+
+        nb_agents = self.hr.evaluate_agents()
+        if nb_agents < 8:
+            log("Recrutement d'urgence")
+            self.hr.recruit()
+
+        if real_revenue > 5 and stats["stock"] > 100:
+            log("Les revenus réels sont bons, on peut vendre normalement")
+            subprocess.run(["python", os.path.expanduser("~/departement_ventes/sell_emails_paypal.py")])
+        elif stats["stock"] > 500 and real_revenue < 1:
+            log("Stock élevé mais peu de revenus réels → vente forcée à prix réduit")
+            subprocess.run(f"sed -i 's/montant = nb \\* [0-9.]*/montant = nb * 0.005/' ~/departement_ventes/sell_emails_paypal.py", shell=True)
+            subprocess.run(["python", os.path.expanduser("~/departement_ventes/sell_emails_paypal.py")])
+
+        if real_revenue > 10:
+            self.state["risk_level"] = min(0.9, self.state["risk_level"] + 0.05)
+            log(f"Risque augmenté à {self.state['risk_level']:.2f}")
+        elif real_revenue < 1:
+            self.state["risk_level"] = max(0.1, self.state["risk_level"] - 0.05)
+            log(f"Risque réduit à {self.state['risk_level']:.2f}")
+
+        self.save_state()
+        self.generate_report(stats, real_revenue)
+
+    def generate_report(self, stats, real_revenue):
+        report = (
+            f"📊 RAPPORT CEO SUPRÊME (portefeuilles réels) - {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"💰 Argent total réel: {real_revenue:.2f} USD\n"
+            f"📧 Emails stock: {stats['stock']}\n👥 Leads: {stats['leads']}\n🤖 Bots: {stats['bots']}\n"
+            f"📈 Objectif court terme: {self.objectives.data['short_term']['revenue_target']:.2f} USD\n"
+            f"🧠 Vision: {self.vision.report()}\n"
+            f"⚙️ Stratégie: {self.state['strategy']}, Risque: {self.state['risk_level']:.2f}"
+        )
+        log(report)
+        token = self.keysync.get("TELEGRAM_BOT_TOKEN")
+        chat_id = self.keysync.get("TELEGRAM_CHAT_ID")
+        if token and chat_id and token != "VOTRE_TOKEN":
+            try:
+                requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                              json={"chat_id": chat_id, "text": report}, timeout=5)
+            except: pass
+
+def main():
+    log("🧠 CEO Suprême – Supervision des portefeuilles réels (BNB + PayPal)", "START")
+    portfolio = RealPortfolio()
+    vision = Vision()
+    objectives = Objectives()
+    hr = HR()
+    finance = Finance(portfolio)
+    keysync = KeySync()
+    decider = StrategicDecider(vision, objectives, hr, finance, keysync, portfolio)
+
+    while True:
+        stats = get_db_stats()
+        finance.update()
+        decider.make_decisions(stats)
+        time.sleep(600)
+
+if __name__ == "__main__":
+    main()

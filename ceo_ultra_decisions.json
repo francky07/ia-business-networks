@@ -1,0 +1,200 @@
+[
+  {
+    "timestamp": "2026-06-13T15:59:33.302367",
+    "action": 2,
+    "context": {
+      "stock": 1,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:00:31.083711",
+    "action": 1,
+    "context": {
+      "stock": 2,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:01:33.824367",
+    "action": 4,
+    "context": {
+      "stock": 3,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:01:52.105846",
+    "action": 2,
+    "context": {
+      "stock": 3,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:02:09.805345",
+    "action": 2,
+    "context": {
+      "stock": 3,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:02:24.601201",
+    "action": 4,
+    "context": {
+      "stock": 4,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:02:44.509129",
+    "action": 2,
+    "context": {
+      "stock": 4,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:02:49.526459",
+    "action": 2,
+    "context": {
+      "stock": 4,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:03:39.067979",
+    "action": 4,
+    "context": {
+      "stock": 5,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:04:29.689113",
+    "action": 4,
+    "context": {
+      "stock": 6,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:04:44.664506",
+    "action": 4,
+    "context": {
+      "stock": 6,
+      "daily_rev": 1.4100000000000001,
+      "leads": 1,
+      "missing_bots_count": 8,
+      "cash": 1.4100000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:09:10.334125",
+    "action": 2,
+    "context": {
+      "stock": 0,
+      "daily_rev": 1.6300000000000001,
+      "leads": 1,
+      "missing_bots_count": 7,
+      "cash": 1.6300000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:10:33.812032",
+    "action": 4,
+    "context": {
+      "stock": 1,
+      "daily_rev": 1.6500000000000001,
+      "leads": 1,
+      "missing_bots_count": 7,
+      "cash": 1.6500000000000001
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:13:39.836937",
+    "action": 2,
+    "context": {
+      "stock": 0,
+      "daily_rev": 1.73,
+      "leads": 1,
+      "missing_bots_count": 6,
+      "cash": 1.73
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:21:25.953001",
+    "action": 2,
+    "context": {
+      "stock": 1,
+      "daily_rev": 1.87,
+      "leads": 1,
+      "missing_bots_count": 3,
+      "cash": 1.87
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:31:27.658241",
+    "action": 1,
+    "context": {
+      "stock": 1,
+      "daily_rev": 2.07,
+      "leads": 1,
+      "missing_bots_count": 4,
+      "cash": 2.07
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:41:34.176053",
+    "action": 2,
+    "context": {
+      "stock": 0,
+      "daily_rev": 2.29,
+      "leads": 1,
+      "missing_bots_count": 5,
+      "cash": 2.29
+    }
+  },
+  {
+    "timestamp": "2026-06-13T16:51:40.986388",
+    "action": 1,
+    "context": {
+      "stock": 1,
+      "daily_rev": 2.47,
+      "leads": 1,
+      "missing_bots_count": 5,
+      "cash": 2.47
+    }
+  }
+]

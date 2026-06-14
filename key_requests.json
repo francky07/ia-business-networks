@@ -1,0 +1,10 @@
+{
+  "pending": [
+    "BINANCE_API_KEY",
+    "BINANCE_API_SECRET",
+    "STRIPE_SECRET_KEY",
+    "CLICKWORKER_API_KEY",
+    "OPENAI_API_KEY"
+  ],
+  "fulfilled": []
+}
